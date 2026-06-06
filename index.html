@@ -144,6 +144,7 @@
             display: flex; flex-direction: column;
             padding: 15px; gap: 10px; overflow-y: auto;
             backdrop-filter: blur(10px);
+            flex-shrink: 0;
         }
         #scripts-panel { border-right: none; border-left: 1px solid rgba(255,255,255,0.1); }
 
@@ -161,15 +162,29 @@
         }
         .palette-block:hover { background: rgba(255, 255, 255, 0.25); }
 
+        /* Variables Panel */
+        .var-group {
+            display: flex; flex-direction: column; gap: 2px;
+            background: rgba(0,0,0,0.3); padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.05);
+        }
+        .var-group label { display: flex; justify-content: space-between; font-size: 12px; font-weight: bold; color: #3b82f6;}
+
         /* Node Workspace */
-        #workspace {
-            flex: 1; position: relative; overflow: hidden;
+        #workspace-viewport {
+            flex: 1; position: relative; overflow: auto;
+            background: #000;
+        }
+
+        #workspace-inner {
+            width: 3000px;
+            height: 3000px;
+            position: relative;
             background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
             background-size: 20px 20px;
         }
 
         #builder-preview {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
             right: 20px;
             width: 320px;
@@ -177,7 +192,7 @@
             background: rgba(0, 0, 0, 0.8);
             border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 8px;
-            z-index: 10;
+            z-index: 50;
             pointer-events: none; /* Let clicks pass through to workspace */
             box-shadow: 0 4px 15px rgba(0,0,0,0.8);
             overflow: hidden;
@@ -202,7 +217,7 @@
         .node {
             position: absolute; background: rgba(20, 20, 20, 0.9);
             border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-            min-width: 180px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            min-width: 190px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
             backdrop-filter: blur(10px); display: flex; flex-direction: column;
         }
         
@@ -222,7 +237,7 @@
         }
         .node-delete:hover { color: #ff5555; background: transparent;}
 
-        .node-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+        .node-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
 
         .port-row { display: flex; justify-content: space-between; position: relative; }
         .port-label { color: #bbb; }
@@ -238,12 +253,25 @@
         .port-in { left: -16px; }
         .port-out { right: -16px; }
 
-        .param-group { display: flex; flex-direction: column; gap: 2px; }
-        input[type="range"] { width: 100%; cursor: pointer; }
-        select {
-            padding: 5px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px;
+        .param-group { display: flex; flex-direction: column; gap: 4px; }
+        
+        .param-header { display: flex; justify-content: space-between; align-items: center; }
+        
+        .var-bind-select {
+            background: transparent; color: #3b82f6; border: 1px solid #3b82f6; 
+            border-radius: 3px; font-size: 10px; padding: 1px 3px; min-width: auto; height: 18px; cursor: pointer;
+            margin-right: 5px;
         }
-        option { background: #333; }
+        .var-bind-select.active { background: #3b82f6; color: white; }
+        .var-bind-select option { background: #111; color: white; }
+
+        input[type="range"] { width: 100%; cursor: pointer; }
+        input[type="range"]:disabled { opacity: 0.3; cursor: not-allowed; }
+        
+        select.node-select {
+            padding: 5px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px; width: 100%;
+        }
+        select.node-select option { background: #333; }
 
         .script-item {
             padding: 10px; background: rgba(255,255,255,0.1);
@@ -322,23 +350,27 @@
             <!-- Palette Sidebar -->
             <div class="sidebar" id="palette-panel">
                 <div class="panel-title">Add Nodes</div>
-                <div id="blocks-palette"></div>
+                <div id="blocks-palette" style="display: flex; flex-direction: column; gap: 5px;"></div>
+                
                 <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
-                <div style="font-size: 11px; color: #aaa; text-align: center;">
-                    Drag from an Output port to an Input port to connect.<br><br>
-                    Click a wire to view the delete option, or double-click to fast-delete.
+                
+                <div class="panel-title">Global Variables</div>
+                <div id="variables-container" style="display: flex; flex-direction: column; gap: 10px;">
+                    <!-- V1 to V5 Sliders injected here -->
                 </div>
             </div>
 
-            <!-- Workspace -->
-            <div id="workspace">
-                <svg id="wires-svg"></svg>
-                <div id="nodes-container"></div>
-                
-                <!-- Builder Preview Window -->
-                <div id="builder-preview">
-                    <canvas id="preview-canvas"></canvas>
+            <!-- Workspace Viewport -->
+            <div id="workspace-viewport">
+                <div id="workspace-inner">
+                    <svg id="wires-svg"></svg>
+                    <div id="nodes-container"></div>
                 </div>
+            </div>
+
+            <!-- Builder Preview Window -->
+            <div id="builder-preview">
+                <canvas id="preview-canvas"></canvas>
             </div>
 
             <!-- Save/Load Sidebar -->
@@ -348,6 +380,10 @@
                 <button id="clear-script-btn" style="width: 100%; margin-top: 5px;">Clear Workspace</button>
                 <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
                 <div id="saved-scripts-list" style="display: flex; flex-direction: column; gap: 0;"></div>
+                
+                <div style="font-size: 11px; color: #888; text-align: center; margin-top: auto; padding-top: 20px;">
+                    Pan workspace using scrollbars. Drag outputs to inputs. Connect variables (🔗) to control multiple inputs at once.
+                </div>
             </div>
 
         </div>
@@ -366,12 +402,16 @@
     </div>
 
     <script>
+    // --- Global Variables Data ---
+    // Internally vars are 0.0 to 1.0. UI displays 0-100%
+    const globals = { v1: 0.5, v2: 0.5, v3: 0.5, v4: 0.5, v5: 0.5 };
+
     // --- Config & Node Definitions ---
     const NODE_DEFS = {
         camera: { label: 'Camera In', inPorts: [], outPorts: ['video'], color: 'rgba(255, 255, 255, 0.1)', maxOne: true },
         screen: { label: 'Screen Out', inPorts: ['render'], outPorts: [], color: 'rgba(255, 255, 255, 0.1)', maxOne: true },
         
-        // Adjustments
+        // Adjustments & Transforms
         grayscale: { 
             label: 'Grayscale', inPorts: ['in'], outPorts: ['out'], 
             params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] 
@@ -395,22 +435,46 @@
                 { id: 'contrast', label: 'Contrast', type: 'range', min: -100, max: 100, default: 0 }
             ] 
         },
+        transform: {
+            label: 'Transform (Flip)', inPorts: ['in'], outPorts: ['out'],
+            params: [
+                { id: 'flipX', label: 'Flip X', type: 'select', options: ['false', 'true'], default: 'false' },
+                { id: 'flipY', label: 'Flip Y', type: 'select', options: ['false', 'true'], default: 'false' }
+            ]
+        },
         
-        // Filters
+        // Filters & Keys
         bandpass: { 
             label: 'Band Pass', inPorts: ['in'], outPorts: ['out'], 
             params: [
-                { id: 'median', label: 'Target Luma', type: 'range', min: 0, max: 255, default: 127 },
-                { id: 'range', label: 'Width', type: 'range', min: 0, max: 255, default: 50 }
+                { id: 'channel', label: 'Target Channel', type: 'select', options: ['luma', 'red', 'green', 'blue'], default: 'luma' },
+                { id: 'median', label: 'Target Val', type: 'range', min: 0, max: 255, default: 127 },
+                { id: 'range', label: 'Pass Width', type: 'range', min: 0, max: 255, default: 50 }
             ] 
+        },
+        chroma: {
+            label: 'Chroma Key', inPorts: ['in'], outPorts: ['out'],
+            params: [
+                { id: 'r', label: 'Key Red', type: 'range', min:0, max:255, default:0 },
+                { id: 'g', label: 'Key Green', type: 'range', min:0, max:255, default:255 },
+                { id: 'b', label: 'Key Blue', type: 'range', min:0, max:255, default:0 },
+                { id: 'tol', label: 'Tolerance', type: 'range', min:1, max:200, default:80 }
+            ]
         },
         edge: { 
             label: 'Edge Detect', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'threshold', label: 'Threshold', type: 'range', min: 1, max: 255, default: 25 }] 
+            params: [
+                { id: 'mode', label: 'Output Mode', type: 'select', options: ['grayscale', 'binary'], default: 'grayscale' },
+                { id: 'intensity', label: 'Intensity / Thresh', type: 'range', min: 1, max: 255, default: 50 }
+            ] 
         },
         mask: { 
             label: 'Luma Mask', inPorts: ['in'], outPorts: ['out'], 
             params: [{ id: 'invert', label: 'Invert Mask', type: 'select', options: ['false', 'true'], default: 'false' }] 
+        },
+        pixelate: {
+            label: 'Pixelate', inPorts: ['in'], outPorts: ['out'],
+            params: [{ id: 'size', label: 'Block Size', type: 'range', min:1, max:100, default:10 }]
         },
 
         // Temporal / Mixing
@@ -435,7 +499,7 @@
     };
 
     // --- State ---
-    let nodes = {}; // { id: { id, type, x, y, params, domElement, ctx } }
+    let nodes = {}; // { id: { id, type, x, y, params, bindings, domElement, ctx } }
     let wires = []; // { id, fromNode, fromPort, toNode, toPort }
     
     let activeScriptName = "Standard";
@@ -445,10 +509,9 @@
     let draggedNode = null;
     let dragOffsetX = 0, dragOffsetY = 0;
     
-    let draggingWire = null; // { fromNode, fromPort, svgLine }
-    let selectedWire = null; // ID of the currently selected wire
+    let draggingWire = null; 
+    let selectedWire = null; 
 
-    // Evaluation State
     let evalOrder = [];
     let hasCycleError = false;
 
@@ -459,11 +522,12 @@
     let vrOffset = 0;
     let renderLoopId = null;
     let hideControlsTimeout = null;
-    let videoWidth = 640; // Default fallback
+    let videoWidth = 640; 
     let videoHeight = 480;
 
     // --- DOM Elements ---
-    const workspace = document.getElementById('workspace');
+    const workspaceViewport = document.getElementById('workspace-viewport');
+    const workspaceInner = document.getElementById('workspace-inner');
     const nodesContainer = document.getElementById('nodes-container');
     const wiresSvg = document.getElementById('wires-svg');
     const videoLeft = document.getElementById('video-left');
@@ -472,16 +536,82 @@
     const canvasLeft = document.getElementById('canvas-left');
     const canvasRight = document.getElementById('canvas-right');
     const canvasSingle = document.getElementById('canvas-single');
-    const previewCanvas = document.getElementById('preview-canvas'); // Live Preview
+    const previewCanvas = document.getElementById('preview-canvas');
     const camControlsPanel = document.getElementById('controls-panel');
     const viewCam = document.getElementById('view-camera');
 
     // --- Helper: IDs ---
     function generateId() { return Math.random().toString(36).substr(2, 9); }
 
+    // --- Global Variables Engine ---
+    function initGlobalVarsUI() {
+        const container = document.getElementById('variables-container');
+        container.innerHTML = '';
+        Object.keys(globals).forEach(v => {
+            const el = document.createElement('div');
+            el.className = 'var-group';
+            el.innerHTML = `
+                <label><span>${v.toUpperCase()}</span> <span id="val-${v}">${Math.round(globals[v]*100)}%</span></label>
+                <input type="range" min="0" max="100" value="${globals[v]*100}" oninput="updateGlobalVar('${v}', this.value)">
+            `;
+            container.appendChild(el);
+        });
+    }
+
+    window.updateGlobalVar = function(varName, percentVal) {
+        const floatVal = percentVal / 100;
+        globals[varName] = floatVal;
+        document.getElementById(`val-${varName}`).textContent = `${percentVal}%`;
+        
+        // Cascade to bound node parameters
+        Object.values(nodes).forEach(node => {
+            if (node.bindings) {
+                Object.entries(node.bindings).forEach(([paramId, boundVar]) => {
+                    if (boundVar === varName) {
+                        const def = NODE_DEFS[node.type].params.find(p => p.id === paramId);
+                        if (def) {
+                            // Map 0-1 to min-max
+                            const mappedVal = Math.round(def.min + floatVal * (def.max - def.min));
+                            
+                            // Update logical state
+                            node.params[paramId] = mappedVal;
+                            
+                            // Update UI
+                            const lbl = document.getElementById(`lbl-${node.id}-${paramId}`);
+                            if (lbl) lbl.textContent = mappedVal;
+                            const slider = document.getElementById(`slider-${node.id}-${paramId}`);
+                            if (slider) slider.value = mappedVal;
+                        }
+                    }
+                });
+            }
+        });
+    };
+
+    window.updateBinding = function(nodeId, paramId, varName) {
+        const node = nodes[nodeId];
+        if (!node) return;
+        if (!node.bindings) node.bindings = {};
+        
+        const slider = document.getElementById(`slider-${nodeId}-${paramId}`);
+        const selectBox = document.getElementById(`bind-${nodeId}-${paramId}`);
+        
+        if (varName === "") {
+            delete node.bindings[paramId];
+            if(slider) slider.disabled = false;
+            selectBox.classList.remove('active');
+        } else {
+            node.bindings[paramId] = varName;
+            if(slider) slider.disabled = true;
+            selectBox.classList.add('active');
+            // Force immediate update based on current global var value
+            updateGlobalVar(varName, globals[varName] * 100);
+        }
+    };
+
+
     // --- Graph Engine ---
     function rebuildGraphOrder() {
-        // Topological Sort
         hasCycleError = false;
         let inDegree = {};
         let adjList = {};
@@ -518,11 +648,9 @@
 
         if (count !== Object.keys(nodes).length) {
             hasCycleError = true;
-            // Mark unvisited nodes as error
             Object.keys(nodes).forEach(id => {
                 if (!evalOrder.includes(id)) nodes[id].domElement.classList.add('error');
             });
-            console.warn("Cycle detected in graph!");
         }
     }
 
@@ -532,26 +660,22 @@
         return c;
     }
 
-    // Process single frame through the node graph
     function evaluateFrame() {
         if (!stream || hasCycleError || evalOrder.length === 0) return;
         
-        // Grab current source dimension
         if (singleVideo.videoWidth) {
             videoWidth = singleVideo.videoWidth;
             videoHeight = singleVideo.videoHeight;
         }
 
-        // Initialize node buffers dynamically
         Object.values(nodes).forEach(node => {
             if (!node.canvas || node.canvas.width !== videoWidth) {
                 node.canvas = createInternalCanvas(videoWidth, videoHeight);
                 node.ctx = node.canvas.getContext('2d', { willReadFrequently: true });
-                if (node.type === 'delay' || node.type === 'accumulate') node.buffer = []; // Reset buffers
+                if (node.type === 'delay' || node.type === 'accumulate') node.buffer = []; 
             }
         });
 
-        // Evaluate in topological order
         for (let nodeId of evalOrder) {
             const node = nodes[nodeId];
             const def = NODE_DEFS[node.type];
@@ -565,18 +689,15 @@
                     const inputCanvas = nodes[wire.fromNode].canvas;
                     renderFinalOutput(inputCanvas);
                 } else {
-                    renderFinalOutput(null); // Clear screen if disconnected
+                    renderFinalOutput(null); 
                 }
             } 
             else {
-                // Determine inputs
                 let inputs = {};
                 def.inPorts.forEach(port => {
                     const wire = wires.find(w => w.toNode === nodeId && w.toPort === port);
                     inputs[port] = wire ? nodes[wire.fromNode].canvas : null;
                 });
-
-                // Apply node effect
                 applyNodeEffect(node, inputs);
             }
         }
@@ -636,7 +757,6 @@
             const out = outImg.data;
             const numPixels = w * h * 4;
             
-            // Track how many frames actually exist to prevent black frames at start
             if(node.frameCount === undefined) node.frameCount = 0;
             if(node.frameCount < reqFrames) node.frameCount++;
             const activeFrames = Math.min(node.frameCount, reqFrames);
@@ -649,10 +769,7 @@
                         g += node.buffer[f][i+1];
                         b += node.buffer[f][i+2];
                     }
-                    out[i] = r / activeFrames;
-                    out[i+1] = g / activeFrames;
-                    out[i+2] = b / activeFrames;
-                    out[i+3] = 255;
+                    out[i] = r / activeFrames; out[i+1] = g / activeFrames; out[i+2] = b / activeFrames; out[i+3] = 255;
                 }
             } else if (mode === 'lighten') {
                 for (let i = 0; i < numPixels; i += 4) {
@@ -717,9 +834,7 @@
                     g = 255 - ((255-g1)*(255-g2))/255; 
                     b = 255 - ((255-b1)*(255-b2))/255;
                 } else if (mode === 'difference') {
-                    r = Math.abs(r1 - r2); 
-                    g = Math.abs(g1 - g2); 
-                    b = Math.abs(b1 - b2);
+                    r = Math.abs(r1 - r2); g = Math.abs(g1 - g2); b = Math.abs(b1 - b2);
                 } else { // mix
                     r = r2; g = g2; b = b2; 
                 }
@@ -733,7 +848,37 @@
             return;
         }
 
-        // --- Single-Input Processors ---
+        // --- Structural/Geometric Transforms ---
+        if (type === 'transform') {
+            const inCanvas = inputs['in'];
+            if (!inCanvas) return;
+            const flipX = params.flipX === 'true';
+            const flipY = params.flipY === 'true';
+            
+            ctx.save();
+            ctx.translate(flipX ? w : 0, flipY ? h : 0);
+            ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+            ctx.drawImage(inCanvas, 0, 0);
+            ctx.restore();
+            return;
+        }
+
+        if (type === 'pixelate') {
+            const inCanvas = inputs['in'];
+            if (!inCanvas) return;
+            const size = parseInt(params.size || 10);
+            
+            if (size <= 1) { ctx.drawImage(inCanvas, 0, 0); return; }
+            
+            ctx.imageSmoothingEnabled = false;
+            // Draw scaled down
+            ctx.drawImage(inCanvas, 0, 0, w/size, h/size);
+            // Draw scaled up back to full size
+            ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
+            return;
+        }
+
+        // --- Single-Input Pixel Processors ---
         const inCanvas = inputs['in'];
         if (!inCanvas) return;
         ctx.drawImage(inCanvas, 0, 0);
@@ -778,27 +923,46 @@
         }
         else if (type === 'bandpass') {
             const med = parseInt(params.median||127), rh = parseInt(params.range||50)/2;
+            const targetChannel = params.channel || 'luma';
+            
             for (let i=0; i<len; i+=4) {
-                let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-                if (Math.abs(gray - med) > rh) { data[i]=0; data[i+1]=0; data[i+2]=0; }
+                let val;
+                if (targetChannel === 'red') val = data[i];
+                else if (targetChannel === 'green') val = data[i+1];
+                else if (targetChannel === 'blue') val = data[i+2];
+                else val = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; 
+
+                if (Math.abs(val - med) > rh) { 
+                    data[i] = 0; data[i+1] = 0; data[i+2] = 0; 
+                }
             }
         } 
+        else if (type === 'chroma') {
+            const kr = params.r || 0, kg = params.g || 255, kb = params.b || 0;
+            const tol = params.tol || 80;
+            for (let i=0; i<len; i+=4) {
+                let dist = Math.sqrt(Math.pow(data[i]-kr,2) + Math.pow(data[i+1]-kg,2) + Math.pow(data[i+2]-kb,2));
+                if (dist < tol) {
+                    data[i+3] = 0; // Turn pixel transparent
+                }
+            }
+        }
         else if (type === 'mask') {
             const inv = params.invert === 'true';
             for (let i=0; i<len; i+=4) {
                 let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-                data[i+3] = inv ? (255 - gray) : gray; // Map Luma to Alpha
+                data[i+3] = inv ? (255 - gray) : gray; 
             }
         }
         else if (type === 'edge') {
-            const thresh = parseInt(params.threshold || 25);
+            const intensity = parseInt(params.intensity || 50);
+            const mode = params.mode || 'grayscale';
             const gray = new Uint8Array(w * h);
             
-            // Fast grayscale pass
             for(let i=0, j=0; i<len; i+=4, j++) {
                 gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
             }
-            // Edge calculation pass
+            
             for (let y = 0; y < h; y++) {
                 for (let x = 0; x < w; x++) {
                     const idx = y * w + x;
@@ -808,7 +972,13 @@
                     
                     const diff = Math.abs(c - right) + Math.abs(c - bottom);
                     const outIdx = idx * 4;
-                    const val = diff > thresh ? 255 : 0;
+                    
+                    let val;
+                    if (mode === 'binary') {
+                        val = diff > intensity ? 255 : 0;
+                    } else {
+                        val = Math.min(255, diff * (intensity / 10)); 
+                    }
                     
                     data[outIdx] = val;
                     data[outIdx+1] = val;
@@ -824,7 +994,6 @@
     function renderFinalOutput(sourceCanvas) {
         const targets = vrMode ? [canvasLeft, canvasRight] : [canvasSingle];
         
-        // Handle hide/show logic cleanly
         if (!sourceCanvas) {
             canvasLeft.style.display = 'none';
             canvasRight.style.display = 'none';
@@ -833,7 +1002,6 @@
             return;
         }
 
-        // Render to Main Screens
         targets.forEach(c => {
             c.style.display = 'block';
             if (c.width !== sourceCanvas.width) c.width = sourceCanvas.width;
@@ -842,11 +1010,9 @@
             ctx.drawImage(sourceCanvas, 0, 0);
         });
 
-        // Hide unused canvases
         if (vrMode) canvasSingle.style.display = 'none';
         else { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; }
 
-        // Render to Mini Builder Preview
         previewCanvas.style.display = 'block';
         if (previewCanvas.width !== sourceCanvas.width) previewCanvas.width = sourceCanvas.width;
         if (previewCanvas.height !== sourceCanvas.height) previewCanvas.height = sourceCanvas.height;
@@ -860,11 +1026,11 @@
 
     // --- UI: Node Workspace Rendering ---
 
-    function createNode(type, x, y, restoredId = null, restoredParams = null) {
+    function createNode(type, x, y, restoredId = null, restoredParams = null, restoredBindings = null) {
         const def = NODE_DEFS[type];
         if (def.maxOne) {
             const existing = Object.values(nodes).find(n => n.type === type);
-            if (existing) return existing.id; // Enforce singletons for Cam/Screen
+            if (existing) return existing.id;
         }
 
         const id = restoredId || generateId();
@@ -876,6 +1042,7 @@
 
         let bodyHtml = '';
         const params = restoredParams || {};
+        const bindings = restoredBindings || {};
 
         if (def.inPorts.length > 0 || def.outPorts.length > 0) {
             const maxPorts = Math.max(def.inPorts.length, def.outPorts.length);
@@ -894,21 +1061,35 @@
         if (def.params) {
             def.params.forEach(p => {
                 const val = params[p.id] !== undefined ? params[p.id] : p.default;
-                params[p.id] = val; // ensure mapped
+                params[p.id] = val; 
+                
+                const boundVar = bindings[p.id] || "";
                 
                 if (p.type === 'range') {
+                    const bindSelect = `
+                        <select id="bind-${id}-${p.id}" class="var-bind-select ${boundVar ? 'active' : ''}" onchange="updateBinding('${id}','${p.id}',this.value)">
+                            <option value="">🔗</option>
+                            <option value="v1" ${boundVar==='v1'?'selected':''}>v1</option>
+                            <option value="v2" ${boundVar==='v2'?'selected':''}>v2</option>
+                            <option value="v3" ${boundVar==='v3'?'selected':''}>v3</option>
+                            <option value="v4" ${boundVar==='v4'?'selected':''}>v4</option>
+                            <option value="v5" ${boundVar==='v5'?'selected':''}>v5</option>
+                        </select>
+                    `;
+                    
                     bodyHtml += `<div class="param-group">
-                        <div style="display:flex; justify-content:space-between">
-                            <span>${p.label}</span><span id="lbl-${id}-${p.id}">${val}</span>
+                        <div class="param-header">
+                            <span>${p.label}</span>
+                            <div>${bindSelect}<span id="lbl-${id}-${p.id}">${val}</span></div>
                         </div>
-                        <input type="range" min="${p.min}" max="${p.max}" value="${val}" 
-                            oninput="updateParam('${id}','${p.id}',this.value)">
+                        <input type="range" id="slider-${id}-${p.id}" min="${p.min}" max="${p.max}" value="${val}" 
+                            ${boundVar ? 'disabled' : ''} oninput="updateParam('${id}','${p.id}',this.value)">
                     </div>`;
                 } else if (p.type === 'select') {
                     let opts = p.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('');
                     bodyHtml += `<div class="param-group">
                         <span>${p.label}</span>
-                        <select onchange="updateParam('${id}','${p.id}',this.value)">${opts}</select>
+                        <select class="node-select" onchange="updateParam('${id}','${p.id}',this.value)">${opts}</select>
                     </div>`;
                 }
             });
@@ -926,7 +1107,7 @@
 
         nodesContainer.appendChild(el);
         
-        nodes[id] = { id, type, params, domElement: el };
+        nodes[id] = { id, type, params, bindings, domElement: el };
         
         // Header dragging
         const header = el.querySelector('.node-header');
@@ -934,7 +1115,6 @@
             if (e.target.tagName === 'BUTTON') return;
             draggedNode = id;
             const rect = el.getBoundingClientRect();
-            // Local offset within the node header
             dragOffsetX = e.clientX - rect.left;
             dragOffsetY = e.clientY - rect.top;
         });
@@ -945,7 +1125,6 @@
                 e.stopPropagation();
                 const isOut = portEl.classList.contains('port-out');
                 if (!isOut) {
-                    // If grabbing an input port, detach existing wire
                     const existingWireIdx = wires.findIndex(w => w.toNode === id && w.toPort === portEl.dataset.port);
                     if (existingWireIdx >= 0) {
                         const w = wires[existingWireIdx];
@@ -961,10 +1140,8 @@
             
             portEl.addEventListener('mouseup', (e) => {
                 if (draggingWire && portEl.classList.contains('port-in')) {
-                    // Valid connection check
-                    if (draggingWire.fromNode === id) return; // Self connection
+                    if (draggingWire.fromNode === id) return; 
                     
-                    // Remove existing wire to this input if exists
                     wires = wires.filter(w => !(w.toNode === id && w.toPort === portEl.dataset.port));
                     
                     wires.push({
@@ -999,7 +1176,6 @@
         if (!nodes[id]) return;
         nodes[id].domElement.remove();
         delete nodes[id];
-        // Clean wires
         wires = wires.filter(w => w.fromNode !== id && w.toNode !== id);
         rebuildGraphOrder();
         drawWires();
@@ -1014,7 +1190,7 @@
         if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
         
         const portRect = portEl.getBoundingClientRect();
-        const wsRect = workspace.getBoundingClientRect();
+        const wsRect = workspaceInner.getBoundingClientRect();
         return {
             x: portRect.left - wsRect.left + portRect.width/2,
             y: portRect.top - wsRect.top + portRect.height/2
@@ -1031,18 +1207,14 @@
             path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
             path.dataset.wireId = w.id;
             
-            if (selectedWire === w.id) {
-                path.style.stroke = '#ef4444'; // Highlight selected wire in red
-            }
+            if (selectedWire === w.id) path.style.stroke = '#ef4444'; 
             
-            // Interaction to select
             path.addEventListener('mousedown', (e) => {
                 e.stopPropagation();
                 selectedWire = w.id;
                 drawWires();
             });
 
-            // Double click to fast delete wire
             path.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
                 wires = wires.filter(wire => wire.id !== w.id);
@@ -1052,28 +1224,20 @@
             });
             wiresSvg.appendChild(path);
 
-            // Draw a quick delete button over selected wires
             if (selectedWire === w.id) {
                 const midX = (p1.x + p2.x) / 2;
                 const midY = (p1.y + p2.y) / 2;
 
                 const delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                delBg.setAttribute('cx', midX);
-                delBg.setAttribute('cy', midY);
-                delBg.setAttribute('r', 12);
-                delBg.setAttribute('fill', '#ef4444');
-                delBg.style.cursor = 'pointer';
-                delBg.style.pointerEvents = 'all';
+                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY);
+                delBg.setAttribute('r', 12); delBg.setAttribute('fill', '#ef4444');
+                delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
 
                 const delText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                delText.setAttribute('x', midX);
-                delText.setAttribute('y', midY + 4); // Offset text slightly to center
-                delText.setAttribute('text-anchor', 'middle');
-                delText.setAttribute('fill', 'white');
-                delText.setAttribute('font-size', '12px');
-                delText.setAttribute('font-weight', 'bold');
-                delText.style.cursor = 'pointer';
-                delText.style.pointerEvents = 'none';
+                delText.setAttribute('x', midX); delText.setAttribute('y', midY + 4);
+                delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white');
+                delText.setAttribute('font-size', '12px'); delText.setAttribute('font-weight', 'bold');
+                delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none';
                 delText.textContent = '✕';
 
                 delBg.addEventListener('mousedown', (e) => {
@@ -1091,7 +1255,7 @@
 
         if (draggingWire) {
             const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true);
-            const wsRect = workspace.getBoundingClientRect();
+            const wsRect = workspaceInner.getBoundingClientRect();
             const p2 = { x: draggingWire.mouseX - wsRect.left, y: draggingWire.mouseY - wsRect.top };
             const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             path.setAttribute('class', 'wire active');
@@ -1113,8 +1277,8 @@
     window.addEventListener('mousemove', (e) => {
         if (draggedNode && nodes[draggedNode]) {
             const el = nodes[draggedNode].domElement;
-            const wsRect = workspace.getBoundingClientRect();
-            // Calculate relative offset based on local header mouse offset and the workspace parent box
+            const wsRect = workspaceInner.getBoundingClientRect();
+            
             let nx = e.clientX - dragOffsetX - wsRect.left;
             let ny = e.clientY - dragOffsetY - wsRect.top;
             el.style.left = `${Math.max(0, nx)}px`;
@@ -1133,9 +1297,8 @@
         if (draggingWire) cleanupWireDrag();
     });
 
-    // Clear wire selection if you click on the workspace background
-    workspace.addEventListener('mousedown', (e) => {
-        if (e.target === workspace || e.target === wiresSvg) {
+    workspaceViewport.addEventListener('mousedown', (e) => {
+        if (e.target === workspaceViewport || e.target === workspaceInner || e.target === wiresSvg) {
             if (selectedWire) {
                 selectedWire = null;
                 drawWires();
@@ -1148,23 +1311,35 @@
     function initBuilder() {
         const pal = document.getElementById('blocks-palette');
         Object.keys(NODE_DEFS).forEach(k => {
-            if (NODE_DEFS[k].maxOne) return; // Don't allow manual spawn of special nodes
+            if (NODE_DEFS[k].maxOne) return; 
             const b = document.createElement('div');
             b.className = 'palette-block';
             b.innerHTML = `<span>${NODE_DEFS[k].label}</span><span>+</span>`;
-            b.onclick = () => createNode(k, 250, 100);
+            b.onclick = () => {
+                // Spawn node near current scroll position
+                const sl = workspaceViewport.scrollLeft;
+                const st = workspaceViewport.scrollTop;
+                createNode(k, sl + 250, st + 150);
+            };
             pal.appendChild(b);
         });
 
+        initGlobalVarsUI();
         loadStorage();
         if (Object.keys(nodes).length === 0) setupDefaultGraph();
+        
+        // Center workspace
+        setTimeout(() => {
+            workspaceViewport.scrollLeft = 1100;
+            workspaceViewport.scrollTop = 1300;
+        }, 100);
     }
 
     function setupDefaultGraph() {
         document.getElementById('nodes-container').innerHTML = '';
         nodes = {}; wires = [];
-        const cId = createNode('camera', 50, 200);
-        const sId = createNode('screen', 400, 200);
+        const cId = createNode('camera', 1200, 1400);
+        const sId = createNode('screen', 1600, 1400);
         wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
         rebuildGraphOrder();
         drawWires();
@@ -1174,8 +1349,9 @@
 
     function saveGraphToJSON() {
         return {
+            globals: { ...globals },
             nodes: Object.values(nodes).map(n => ({
-                id: n.id, type: n.type, params: n.params,
+                id: n.id, type: n.type, params: n.params, bindings: n.bindings,
                 x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top)
             })),
             wires: wires
@@ -1185,12 +1361,32 @@
     function loadGraphFromJSON(data, name) {
         document.getElementById('nodes-container').innerHTML = '';
         nodes = {}; wires = [];
-        data.nodes.forEach(n => createNode(n.type, n.x, n.y, n.id, n.params));
+        
+        // Restore globals if exist
+        if (data.globals) {
+            Object.keys(data.globals).forEach(v => {
+                globals[v] = data.globals[v];
+                const input = document.querySelector(`.var-group input[oninput*="'${v}'"]`);
+                if(input) {
+                    input.value = globals[v] * 100;
+                    document.getElementById(`val-${v}`).textContent = `${Math.round(globals[v]*100)}%`;
+                }
+            });
+        }
+        
+        data.nodes.forEach(n => createNode(n.type, n.x, n.y, n.id, n.params, n.bindings));
         wires = data.wires;
         activeScriptName = name;
         rebuildGraphOrder();
         drawWires();
         updateLabels();
+        
+        // Recenter to camera node
+        const camNode = Object.values(nodes).find(n => n.type === 'camera');
+        if(camNode) {
+            workspaceViewport.scrollLeft = parseInt(camNode.domElement.style.left) - 100;
+            workspaceViewport.scrollTop = parseInt(camNode.domElement.style.top) - 100;
+        }
     }
 
     function loadStorage() {
@@ -1238,7 +1434,6 @@
         const name = document.getElementById('save-script-name').value || 'My Graph';
         const graph = saveGraphToJSON();
         
-        // Replace or add
         const exIdx = savedScripts.findIndex(s => s.name === name);
         if (exIdx >= 0) savedScripts[exIdx].graph = graph;
         else savedScripts.push({ name, graph });
@@ -1341,14 +1536,13 @@
     document.getElementById('nav-builder').onclick = function() {
         this.classList.add('active'); document.getElementById('nav-camera').classList.remove('active');
         document.getElementById('view-builder').classList.add('active'); viewCam.classList.remove('active');
-        drawWires(); // Ensure paths compute properly after display:flex
+        drawWires(); 
     };
 
     // --- Boot ---
     initBuilder();
     updateVRMode();
 
-    // Adjust wires on window resize to keep connection points anchored
     window.addEventListener('resize', drawWires);
     </script>
 </body>
