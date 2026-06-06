@@ -3,10 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>VR Camera & Node Builder</title>
+    <title>Block Script Camera</title>
     
     <style>
-        /* Reverted to original minimalist styling */
         * {
             margin: 0;
             padding: 0;
@@ -22,6 +21,7 @@
             font-family: Arial, sans-serif;
             user-select: none;
             color: white;
+            -webkit-user-select: none;
         }
 
         /* --- Top Navigation --- */
@@ -90,79 +90,56 @@
 
         #controls-panel {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
+            bottom: 0; left: 0; width: 100%;
             background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            z-index: 10;
+            padding: 15px; z-index: 10;
             transition: opacity 0.3s ease, transform 0.3s ease;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
+            display: flex; flex-direction: column; gap: 10px;
         }
 
         #controls-panel.hidden {
-            opacity: 0;
-            pointer-events: none;
-            transform: translateY(20px);
+            opacity: 0; pointer-events: none; transform: translateY(20px);
         }
 
-        .controls-row {
-            display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
-        }
+        .controls-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .info-row { display: flex; justify-content: center; gap: 20px; color: white; font-size: 14px; margin-top: 5px; }
 
         button {
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            backdrop-filter: blur(5px);
-            min-width: 120px;
+            padding: 10px 20px; background: rgba(255, 255, 255, 0.2);
+            color: white; border: none; border-radius: 5px;
+            cursor: pointer; font-size: 16px; backdrop-filter: blur(5px);
         }
-
         button:hover { background: rgba(255, 255, 255, 0.3); }
         button:active { transform: scale(0.98); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-        
-        .info-row {
-            display: flex; justify-content: center; gap: 20px; color: white; font-size: 14px; margin-top: 5px;
-        }
 
         /* --- Node Builder Mode Styles --- */
         #builder-layout {
-            display: flex; width: 100%; height: 100%; background: #000;
+            display: flex; width: 100%; height: 100%; background: #000; position: relative;
         }
 
         /* Sidebar Panels */
         .sidebar {
-            width: 250px; background: rgba(255, 255, 255, 0.05);
+            width: 260px; background: rgba(15, 15, 15, 0.95);
             border-right: 1px solid rgba(255,255,255,0.1);
             display: flex; flex-direction: column;
             padding: 15px; gap: 10px; overflow-y: auto;
-            backdrop-filter: blur(10px);
-            flex-shrink: 0;
+            backdrop-filter: blur(15px); flex-shrink: 0; z-index: 20;
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
         }
         #scripts-panel { border-right: none; border-left: 1px solid rgba(255,255,255,0.1); }
 
         .panel-title {
-            font-size: 12px; text-transform: uppercase;
-            letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center;
+            font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center;
         }
 
         .palette-block {
-            padding: 10px; border-radius: 5px;
-            background: rgba(255, 255, 255, 0.15);
-            cursor: pointer; font-size: 14px;
-            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.15);
+            cursor: pointer; font-size: 14px; display: flex; justify-content: space-between; align-items: center;
             transition: background 0.2s;
         }
         .palette-block:hover { background: rgba(255, 255, 255, 0.25); }
 
-        /* Variables Panel */
         .var-group {
             display: flex; flex-direction: column; gap: 2px;
             background: rgba(0,0,0,0.3); padding: 8px; border-radius: 5px; border: 1px solid rgba(255,255,255,0.05);
@@ -171,42 +148,28 @@
 
         /* Node Workspace */
         #workspace-viewport {
-            flex: 1; position: relative; overflow: auto;
-            background: #000;
+            flex: 1; position: relative; overflow: hidden; background: #000; cursor: grab;
+            touch-action: none; /* Crucial for custom touch panning */
         }
+        #workspace-viewport.panning { cursor: grabbing !important; }
 
         #workspace-inner {
-            width: 3000px;
-            height: 3000px;
-            position: relative;
+            width: 3000px; height: 3000px; position: relative;
             background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
             background-size: 20px 20px;
         }
 
         #builder-preview {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            width: 320px;
-            height: 240px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 8px;
-            z-index: 50;
-            pointer-events: none; /* Let clicks pass through to workspace */
-            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            position: fixed; bottom: 20px; right: 20px;
+            width: 320px; height: 240px; background: rgba(0, 0, 0, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px;
+            z-index: 10; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8);
             overflow: hidden;
         }
-
-        #preview-canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-        }
+        #preview-canvas { width: 100%; height: 100%; object-fit: contain; }
 
         #wires-svg {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 1;
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;
         }
 
         .wire { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 3; pointer-events: stroke; cursor: pointer; transition: stroke 0.2s; }
@@ -215,52 +178,51 @@
         @keyframes dash { to { stroke-dashoffset: -10; } }
 
         .node {
-            position: absolute; background: rgba(20, 20, 20, 0.9);
+            position: absolute; background: rgba(20, 20, 20, 0.95);
             border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-            min-width: 190px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
-            backdrop-filter: blur(10px); display: flex; flex-direction: column;
+            min-width: 200px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            display: flex; flex-direction: column; cursor: default;
         }
-        
         .node.error { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
 
         .node-header {
-            padding: 8px 12px; background: rgba(255,255,255,0.1);
+            padding: 10px 12px; background: rgba(255,255,255,0.1);
             border-top-left-radius: 7px; border-top-right-radius: 7px;
             cursor: grab; display: flex; justify-content: space-between; align-items: center;
-            font-weight: bold; font-size: 14px;
+            font-weight: bold; font-size: 14px; touch-action: none;
         }
         .node-header:active { cursor: grabbing; }
 
-        .node-delete {
-            background: transparent; color: #aaa; border: none; padding: 0; min-width: auto;
-            font-size: 12px; cursor: pointer;
+        .node-actions { display: flex; gap: 5px; }
+        .node-btn {
+            background: transparent; color: #aaa; border: none; padding: 2px 6px; min-width: auto;
+            font-size: 12px; cursor: pointer; border-radius: 3px; font-weight: bold;
         }
-        .node-delete:hover { color: #ff5555; background: transparent;}
+        .node-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
+        .node-btn.delete:hover { background: #ef4444; color: #fff; }
 
-        .node-body { padding: 10px; display: flex; flex-direction: column; gap: 10px; font-size: 12px; }
+        .node-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; font-size: 12px; }
 
         .port-row { display: flex; justify-content: space-between; position: relative; }
         .port-label { color: #bbb; }
         
         .port {
-            width: 12px; height: 12px; background: #fff; border-radius: 50%;
+            width: 16px; height: 16px; background: #fff; border-radius: 50%;
             position: absolute; top: 50%; transform: translateY(-50%);
             cursor: crosshair; border: 2px solid #333; z-index: 3;
-            transition: transform 0.1s;
+            transition: transform 0.1s; touch-action: none;
         }
         .port:hover { transform: translateY(-50%) scale(1.3); background: #3b82f6;}
         
-        .port-in { left: -16px; }
-        .port-out { right: -16px; }
+        .port-in { left: -20px; }
+        .port-out { right: -20px; }
 
         .param-group { display: flex; flex-direction: column; gap: 4px; }
-        
         .param-header { display: flex; justify-content: space-between; align-items: center; }
         
         .var-bind-select {
             background: transparent; color: #3b82f6; border: 1px solid #3b82f6; 
-            border-radius: 3px; font-size: 10px; padding: 1px 3px; min-width: auto; height: 18px; cursor: pointer;
-            margin-right: 5px;
+            border-radius: 3px; font-size: 10px; padding: 1px 3px; min-width: auto; height: 18px; cursor: pointer; margin-right: 5px;
         }
         .var-bind-select.active { background: #3b82f6; color: white; }
         .var-bind-select option { background: #111; color: white; }
@@ -268,34 +230,56 @@
         input[type="range"] { width: 100%; cursor: pointer; }
         input[type="range"]:disabled { opacity: 0.3; cursor: not-allowed; }
         
-        select.node-select {
-            padding: 5px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px; width: 100%;
-        }
+        select.node-select { padding: 6px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px; width: 100%; }
         select.node-select option { background: #333; }
 
         .script-item {
-            padding: 10px; background: rgba(255,255,255,0.1);
-            border-radius: 5px; display: flex; justify-content: space-between;
+            padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; display: flex; justify-content: space-between;
             align-items: center; cursor: pointer; margin-bottom: 5px;
         }
         .script-item:hover { background: rgba(255,255,255,0.2); }
 
+        /* --- Mobile Overrides --- */
+        #mobile-bottom-bar { display: none; }
+        #sidebar-overlay { display: none; }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                position: absolute; top: 0; bottom: 0; height: calc(100vh - 60px);
+                box-shadow: 0 0 20px rgba(0,0,0,0.8);
+            }
+            #palette-panel { left: 0; transform: translateX(-100%); }
+            #palette-panel.open { transform: translateX(0); }
+            
+            #scripts-panel { right: 0; transform: translateX(100%); }
+            #scripts-panel.open { transform: translateX(0); }
+            
+            #sidebar-overlay {
+                display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+                background: rgba(0,0,0,0.6); z-index: 15; opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            }
+            #sidebar-overlay.active { opacity: 1; pointer-events: auto; }
+
+            #mobile-bottom-bar {
+                display: flex; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
+                gap: 10px; z-index: 10;
+            }
+            #mobile-bottom-bar button { font-size: 14px; padding: 10px 15px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); background: rgba(30,30,30,0.9); border: 1px solid #444; }
+            #mobile-bottom-bar button:active { background: #333; }
+            
+            #builder-preview {
+                width: 140px; height: 105px; bottom: 60px; right: 10px; opacity: 0.8;
+            }
+        }
+
         /* Modal */
         .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 100;
-            display: flex; justify-content: center; align-items: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100;
+            display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s;
         }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal {
-            background: #111; padding: 20px; border-radius: 8px;
-            width: 90%; max-width: 350px; border: 1px solid rgba(255,255,255,0.2);
-        }
-        .modal input {
-            width: 100%; padding: 10px; border-radius: 4px;
-            border: 1px solid #444; background: #222; color: white; margin: 15px 0;
-        }
+        .modal { background: #111; padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; border: 1px solid rgba(255,255,255,0.2); }
+        .modal input { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #444; background: #222; color: white; margin: 15px 0; }
 
     </style>
 </head>
@@ -345,8 +329,11 @@
 
     <!-- Builder Mode View -->
     <div id="view-builder" class="view-container">
+        
         <div id="builder-layout">
             
+            <div id="sidebar-overlay"></div>
+
             <!-- Palette Sidebar -->
             <div class="sidebar" id="palette-panel">
                 <div class="panel-title">Add Nodes</div>
@@ -373,16 +360,22 @@
                 <canvas id="preview-canvas"></canvas>
             </div>
 
+            <!-- Mobile UI Overlays -->
+            <div id="mobile-bottom-bar">
+                <button id="btn-toggle-palette">➕ Add Node</button>
+                <button id="btn-toggle-scripts">💾 Scripts</button>
+            </div>
+
             <!-- Save/Load Sidebar -->
             <div class="sidebar" id="scripts-panel">
                 <div class="panel-title">Scripts</div>
                 <button id="save-script-btn" style="width: 100%;">Save Graph</button>
-                <button id="clear-script-btn" style="width: 100%; margin-top: 5px;">Clear Workspace</button>
+                <button id="clear-script-btn" style="width: 100%; margin-top: 5px; background: rgba(239, 68, 68, 0.2);">Clear Workspace</button>
                 <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
                 <div id="saved-scripts-list" style="display: flex; flex-direction: column; gap: 0;"></div>
                 
                 <div style="font-size: 11px; color: #888; text-align: center; margin-top: auto; padding-top: 20px;">
-                    Pan workspace using scrollbars. Drag outputs to inputs. Connect variables (🔗) to control multiple inputs at once.
+                    Drag background to pan. Connect variables (🔗) to control multiple inputs at once.
                 </div>
             </div>
 
@@ -403,7 +396,6 @@
 
     <script>
     // --- Global Variables Data ---
-    // Internally vars are 0.0 to 1.0. UI displays 0-100%
     const globals = { v1: 0.5, v2: 0.5, v3: 0.5, v4: 0.5, v5: 0.5 };
 
     // --- Config & Node Definitions ---
@@ -412,6 +404,10 @@
         screen: { label: 'Screen Out', inPorts: ['render'], outPorts: [], color: 'rgba(255, 255, 255, 0.1)', maxOne: true },
         
         // Adjustments & Transforms
+        fps: { 
+            label: 'Framerate Limit', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'fps', label: 'Max FPS', type: 'range', min: 1, max: 60, default: 30 }] 
+        },
         grayscale: { 
             label: 'Grayscale', inPorts: ['in'], outPorts: ['out'], 
             params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] 
@@ -499,8 +495,8 @@
     };
 
     // --- State ---
-    let nodes = {}; // { id: { id, type, x, y, params, bindings, domElement, ctx } }
-    let wires = []; // { id, fromNode, fromPort, toNode, toPort }
+    let nodes = {}; 
+    let wires = []; 
     
     let activeScriptName = "Standard";
     let savedScripts = [];
@@ -511,6 +507,11 @@
     
     let draggingWire = null; 
     let selectedWire = null; 
+    
+    // Panning state
+    let isPanning = false;
+    let panStartX = 0, panStartY = 0;
+    let panStartScrollLeft = 0, panStartScrollTop = 0;
 
     let evalOrder = [];
     let hasCycleError = false;
@@ -540,6 +541,34 @@
     const camControlsPanel = document.getElementById('controls-panel');
     const viewCam = document.getElementById('view-camera');
 
+    // Mobile specific DOM
+    const palettePanel = document.getElementById('palette-panel');
+    const scriptsPanel = document.getElementById('scripts-panel');
+    const sidebarOverlay = document.getElementById('sidebar-overlay');
+    const btnTogglePalette = document.getElementById('btn-toggle-palette');
+    const btnToggleScripts = document.getElementById('btn-toggle-scripts');
+
+    // --- Mobile Layout Helpers ---
+    function isMobile() { return window.innerWidth <= 768; }
+
+    function closeAllPanels() {
+        palettePanel.classList.remove('open');
+        scriptsPanel.classList.remove('open');
+        sidebarOverlay.classList.remove('active');
+    }
+
+    btnTogglePalette.onclick = () => {
+        palettePanel.classList.add('open');
+        sidebarOverlay.classList.add('active');
+    };
+
+    btnToggleScripts.onclick = () => {
+        scriptsPanel.classList.add('open');
+        sidebarOverlay.classList.add('active');
+    };
+
+    sidebarOverlay.onclick = closeAllPanels;
+
     // --- Helper: IDs ---
     function generateId() { return Math.random().toString(36).substr(2, 9); }
 
@@ -563,20 +592,14 @@
         globals[varName] = floatVal;
         document.getElementById(`val-${varName}`).textContent = `${percentVal}%`;
         
-        // Cascade to bound node parameters
         Object.values(nodes).forEach(node => {
             if (node.bindings) {
                 Object.entries(node.bindings).forEach(([paramId, boundVar]) => {
                     if (boundVar === varName) {
                         const def = NODE_DEFS[node.type].params.find(p => p.id === paramId);
                         if (def) {
-                            // Map 0-1 to min-max
                             const mappedVal = Math.round(def.min + floatVal * (def.max - def.min));
-                            
-                            // Update logical state
                             node.params[paramId] = mappedVal;
-                            
-                            // Update UI
                             const lbl = document.getElementById(`lbl-${node.id}-${paramId}`);
                             if (lbl) lbl.textContent = mappedVal;
                             const slider = document.getElementById(`slider-${node.id}-${paramId}`);
@@ -604,7 +627,6 @@
             node.bindings[paramId] = varName;
             if(slider) slider.disabled = true;
             selectBox.classList.add('active');
-            // Force immediate update based on current global var value
             updateGlobalVar(varName, globals[varName] * 100);
         }
     };
@@ -673,6 +695,7 @@
                 node.canvas = createInternalCanvas(videoWidth, videoHeight);
                 node.ctx = node.canvas.getContext('2d', { willReadFrequently: true });
                 if (node.type === 'delay' || node.type === 'accumulate') node.buffer = []; 
+                if (node.type === 'edge') node.grayBuffer = new Uint8Array(videoWidth * videoHeight);
             }
         });
 
@@ -708,7 +731,20 @@
         const w = canvas.width, h = canvas.height;
         ctx.clearRect(0,0,w,h);
 
-        // --- Temporal Effects ---
+        // --- Temporal / Structural Effects ---
+        if (type === 'fps') {
+            const inCanvas = inputs['in'];
+            if (!inCanvas) return;
+            const limit = parseInt(params.fps || 30);
+            const now = performance.now();
+            if (!node.lastTime) node.lastTime = 0;
+            if (now - node.lastTime >= (1000 / limit)) {
+                node.lastTime = now;
+                ctx.drawImage(inCanvas, 0, 0);
+            }
+            return;
+        }
+
         if (type === 'delay') {
             const inCanvas = inputs['in'];
             if (!inCanvas) return;
@@ -728,9 +764,9 @@
             let delayedIndex = (node.bufIndex + 1) % reqFrames;
             let outData = node.buffer[delayedIndex] || node.buffer[0];
             
-            const outImg = ctx.createImageData(w, h);
-            outImg.data.set(outData);
-            ctx.putImageData(outImg, 0, 0);
+            if(!node.outImg || node.outImg.width !== w) node.outImg = ctx.createImageData(w, h);
+            node.outImg.data.set(outData);
+            ctx.putImageData(node.outImg, 0, 0);
             
             node.bufIndex++;
             return;
@@ -753,13 +789,15 @@
             node.bufIndex = (node.bufIndex || 0) % reqFrames;
             node.buffer[node.bufIndex].set(frameData.data);
             
-            const outImg = ctx.createImageData(w, h);
+            if(!node.outImg || node.outImg.width !== w) node.outImg = ctx.createImageData(w, h);
+            const outImg = node.outImg;
             const out = outImg.data;
             const numPixels = w * h * 4;
             
             if(node.frameCount === undefined) node.frameCount = 0;
             if(node.frameCount < reqFrames) node.frameCount++;
             const activeFrames = Math.min(node.frameCount, reqFrames);
+            const invActive = 1 / activeFrames;
 
             if (mode === 'average') {
                 for (let i = 0; i < numPixels; i += 4) {
@@ -769,7 +807,7 @@
                         g += node.buffer[f][i+1];
                         b += node.buffer[f][i+2];
                     }
-                    out[i] = r / activeFrames; out[i+1] = g / activeFrames; out[i+2] = b / activeFrames; out[i+3] = 255;
+                    out[i] = r * invActive; out[i+1] = g * invActive; out[i+2] = b * invActive; out[i+3] = 255;
                 }
             } else if (mode === 'lighten') {
                 for (let i = 0; i < numPixels; i += 4) {
@@ -798,22 +836,20 @@
             return;
         }
 
-        // --- Multi-Input Blending ---
         if (type === 'blend') {
             const bgC = inputs['bg'];
             const fgC = inputs['fg'];
             
             if (!bgC && !fgC) return;
-            if (!bgC || !fgC) {
-                ctx.drawImage(bgC || fgC, 0, 0);
-                return;
-            }
+            if (!bgC || !fgC) { ctx.drawImage(bgC || fgC, 0, 0); return; }
 
-            const bgCtx = bgC.getContext('2d');
-            const fgCtx = fgC.getContext('2d');
+            const bgCtx = bgC.getContext('2d', {willReadFrequently: true});
+            const fgCtx = fgC.getContext('2d', {willReadFrequently: true});
             const bgData = bgCtx.getImageData(0,0,w,h).data;
             const fgData = fgCtx.getImageData(0,0,w,h).data;
-            const outImg = ctx.createImageData(w,h);
+            
+            if(!node.outImg || node.outImg.width !== w) node.outImg = ctx.createImageData(w, h);
+            const outImg = node.outImg;
             const out = outImg.data;
             
             const mode = params.mode || 'mix';
@@ -848,7 +884,6 @@
             return;
         }
 
-        // --- Structural/Geometric Transforms ---
         if (type === 'transform') {
             const inCanvas = inputs['in'];
             if (!inCanvas) return;
@@ -871,9 +906,7 @@
             if (size <= 1) { ctx.drawImage(inCanvas, 0, 0); return; }
             
             ctx.imageSmoothingEnabled = false;
-            // Draw scaled down
             ctx.drawImage(inCanvas, 0, 0, w/size, h/size);
-            // Draw scaled up back to full size
             ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
             return;
         }
@@ -881,10 +914,10 @@
         // --- Single-Input Pixel Processors ---
         const inCanvas = inputs['in'];
         if (!inCanvas) return;
-        ctx.drawImage(inCanvas, 0, 0);
         
-        const imgData = ctx.getImageData(0,0,w,h);
-        const data = imgData.data;
+        const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
+        const imgData = inCtx.getImageData(0,0,w,h);
+        const data = imgData.data; 
         const len = data.length;
 
         if (type === 'grayscale') {
@@ -943,7 +976,7 @@
             for (let i=0; i<len; i+=4) {
                 let dist = Math.sqrt(Math.pow(data[i]-kr,2) + Math.pow(data[i+1]-kg,2) + Math.pow(data[i+2]-kb,2));
                 if (dist < tol) {
-                    data[i+3] = 0; // Turn pixel transparent
+                    data[i+3] = 0; 
                 }
             }
         }
@@ -957,7 +990,8 @@
         else if (type === 'edge') {
             const intensity = parseInt(params.intensity || 50);
             const mode = params.mode || 'grayscale';
-            const gray = new Uint8Array(w * h);
+            if(!node.grayBuffer || node.grayBuffer.length !== w * h) node.grayBuffer = new Uint8Array(w * h);
+            const gray = node.grayBuffer;
             
             for(let i=0, j=0; i<len; i+=4, j++) {
                 gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
@@ -1100,7 +1134,10 @@
         el.innerHTML = `
             <div class="node-header">
                 ${def.label}
-                ${canDelete ? `<button class="node-delete" onclick="deleteNode('${id}')">✕</button>` : '<span></span>'}
+                <div class="node-actions">
+                    ${canDelete ? `<button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>` : ''}
+                    ${canDelete ? `<button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button>` : ''}
+                </div>
             </div>
             <div class="node-body">${bodyHtml}</div>
         `;
@@ -1109,19 +1146,20 @@
         
         nodes[id] = { id, type, params, bindings, domElement: el };
         
-        // Header dragging
+        // --- Universal Pointer Events (Replaces Mouse/Touch) ---
         const header = el.querySelector('.node-header');
-        header.addEventListener('mousedown', (e) => {
+        header.addEventListener('pointerdown', (e) => {
             if (e.target.tagName === 'BUTTON') return;
             draggedNode = id;
             const rect = el.getBoundingClientRect();
             dragOffsetX = e.clientX - rect.left;
             dragOffsetY = e.clientY - rect.top;
+            el.style.zIndex = 5; // Bring to front while dragging
         });
 
         // Port interactions
         el.querySelectorAll('.port').forEach(portEl => {
-            portEl.addEventListener('mousedown', (e) => {
+            portEl.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
                 const isOut = portEl.classList.contains('port-out');
                 if (!isOut) {
@@ -1136,26 +1174,6 @@
                     return;
                 }
                 startWireDrag(id, portEl.dataset.port, e.clientX, e.clientY);
-            });
-            
-            portEl.addEventListener('mouseup', (e) => {
-                if (draggingWire && portEl.classList.contains('port-in')) {
-                    if (draggingWire.fromNode === id) return; 
-                    
-                    wires = wires.filter(w => !(w.toNode === id && w.toPort === portEl.dataset.port));
-                    
-                    wires.push({
-                        id: generateId(),
-                        fromNode: draggingWire.fromNode,
-                        fromPort: draggingWire.fromPort,
-                        toNode: id,
-                        toPort: portEl.dataset.port
-                    });
-                    
-                    cleanupWireDrag();
-                    rebuildGraphOrder();
-                    drawWires();
-                }
             });
         });
 
@@ -1179,6 +1197,18 @@
         wires = wires.filter(w => w.fromNode !== id && w.toNode !== id);
         rebuildGraphOrder();
         drawWires();
+    };
+
+    window.duplicateNode = function(id) {
+        const node = nodes[id];
+        if (!node) return;
+        const newX = parseInt(node.domElement.style.left) + 20;
+        const newY = parseInt(node.domElement.style.top) + 20;
+        
+        const clonedParams = JSON.parse(JSON.stringify(node.params));
+        const clonedBindings = JSON.parse(JSON.stringify(node.bindings || {}));
+        
+        createNode(node.type, newX, newY, null, clonedParams, clonedBindings);
     };
 
     // --- Wire Drawing Logic ---
@@ -1209,7 +1239,7 @@
             
             if (selectedWire === w.id) path.style.stroke = '#ef4444'; 
             
-            path.addEventListener('mousedown', (e) => {
+            path.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
                 selectedWire = w.id;
                 drawWires();
@@ -1230,17 +1260,17 @@
 
                 const delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
                 delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY);
-                delBg.setAttribute('r', 12); delBg.setAttribute('fill', '#ef4444');
+                delBg.setAttribute('r', 14); delBg.setAttribute('fill', '#ef4444');
                 delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
 
                 const delText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                 delText.setAttribute('x', midX); delText.setAttribute('y', midY + 4);
                 delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white');
-                delText.setAttribute('font-size', '12px'); delText.setAttribute('font-weight', 'bold');
+                delText.setAttribute('font-size', '14px'); delText.setAttribute('font-weight', 'bold');
                 delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none';
                 delText.textContent = '✕';
 
-                delBg.addEventListener('mousedown', (e) => {
+                delBg.addEventListener('pointerdown', (e) => {
                     e.stopPropagation();
                     wires = wires.filter(wire => wire.id !== w.id);
                     selectedWire = null;
@@ -1273,8 +1303,31 @@
         drawWires();
     }
 
-    // Workspace Events
-    window.addEventListener('mousemove', (e) => {
+    // --- Universal Pointer Event Handling (Panning, Dragging, Wire Drops) ---
+    
+    workspaceViewport.addEventListener('pointerdown', (e) => {
+        // Only start pan if clicking the background natively
+        if (e.target === workspaceViewport || e.target === workspaceInner || e.target === wiresSvg) {
+            if (selectedWire) {
+                selectedWire = null;
+                drawWires();
+            }
+            isPanning = true;
+            workspaceViewport.classList.add('panning');
+            workspaceViewport.setPointerCapture(e.pointerId);
+            panStartX = e.clientX;
+            panStartY = e.clientY;
+            panStartScrollLeft = workspaceViewport.scrollLeft;
+            panStartScrollTop = workspaceViewport.scrollTop;
+        }
+    });
+
+    window.addEventListener('pointermove', (e) => {
+        if (isPanning) {
+            workspaceViewport.scrollLeft = panStartScrollLeft - (e.clientX - panStartX);
+            workspaceViewport.scrollTop = panStartScrollTop - (e.clientY - panStartY);
+        }
+        
         if (draggedNode && nodes[draggedNode]) {
             const el = nodes[draggedNode].domElement;
             const wsRect = workspaceInner.getBoundingClientRect();
@@ -1285,6 +1338,7 @@
             el.style.top = `${Math.max(0, ny)}px`;
             drawWires();
         }
+        
         if (draggingWire) {
             draggingWire.mouseX = e.clientX;
             draggingWire.mouseY = e.clientY;
@@ -1292,19 +1346,48 @@
         }
     });
 
-    window.addEventListener('mouseup', () => {
-        draggedNode = null;
-        if (draggingWire) cleanupWireDrag();
-    });
+    window.addEventListener('pointerup', (e) => {
+        // Raycast logic to handle wire drops onto input ports across all devices
+        if (draggingWire) {
+            // Temporarily hide active wire so we can 'see' the element underneath
+            const activeWire = wiresSvg.querySelector('.wire.active');
+            if(activeWire) activeWire.style.display = 'none';
+            
+            const target = document.elementFromPoint(e.clientX, e.clientY);
+            
+            if(activeWire) activeWire.style.display = '';
 
-    workspaceViewport.addEventListener('mousedown', (e) => {
-        if (e.target === workspaceViewport || e.target === workspaceInner || e.target === wiresSvg) {
-            if (selectedWire) {
-                selectedWire = null;
-                drawWires();
+            if (target && target.classList.contains('port-in')) {
+                const targetNodeId = target.dataset.node;
+                const targetPortName = target.dataset.port;
+                
+                if (draggingWire.fromNode !== targetNodeId) {
+                    wires = wires.filter(w => !(w.toNode === targetNodeId && w.toPort === targetPortName));
+                    wires.push({
+                        id: generateId(),
+                        fromNode: draggingWire.fromNode,
+                        fromPort: draggingWire.fromPort,
+                        toNode: targetNodeId,
+                        toPort: targetPortName
+                    });
+                    rebuildGraphOrder();
+                }
             }
+            cleanupWireDrag();
+        }
+
+        if (draggedNode && nodes[draggedNode]) {
+            nodes[draggedNode].domElement.style.zIndex = 2; // Reset z-index
+            draggedNode = null;
+        }
+        
+        if (isPanning) {
+            isPanning = false;
+            workspaceViewport.classList.remove('panning');
+            workspaceViewport.releasePointerCapture(e.pointerId);
         }
     });
+
 
     // --- Init & Save/Load ---
 
@@ -1316,10 +1399,12 @@
             b.className = 'palette-block';
             b.innerHTML = `<span>${NODE_DEFS[k].label}</span><span>+</span>`;
             b.onclick = () => {
-                // Spawn node near current scroll position
                 const sl = workspaceViewport.scrollLeft;
                 const st = workspaceViewport.scrollTop;
-                createNode(k, sl + 250, st + 150);
+                // Offset spawn differently if on mobile
+                const spawnX = isMobile() ? sl + 50 : sl + 280;
+                createNode(k, spawnX, st + 150);
+                if (isMobile()) closeAllPanels();
             };
             pal.appendChild(b);
         });
@@ -1328,7 +1413,7 @@
         loadStorage();
         if (Object.keys(nodes).length === 0) setupDefaultGraph();
         
-        // Center workspace
+        // Center workspace initially
         setTimeout(() => {
             workspaceViewport.scrollLeft = 1100;
             workspaceViewport.scrollTop = 1300;
@@ -1362,7 +1447,6 @@
         document.getElementById('nodes-container').innerHTML = '';
         nodes = {}; wires = [];
         
-        // Restore globals if exist
         if (data.globals) {
             Object.keys(data.globals).forEach(v => {
                 globals[v] = data.globals[v];
@@ -1381,12 +1465,12 @@
         drawWires();
         updateLabels();
         
-        // Recenter to camera node
         const camNode = Object.values(nodes).find(n => n.type === 'camera');
         if(camNode) {
-            workspaceViewport.scrollLeft = parseInt(camNode.domElement.style.left) - 100;
+            workspaceViewport.scrollLeft = parseInt(camNode.domElement.style.left) - (isMobile()? 50 : 100);
             workspaceViewport.scrollTop = parseInt(camNode.domElement.style.top) - 100;
         }
+        if (isMobile()) closeAllPanels();
     }
 
     function loadStorage() {
@@ -1408,7 +1492,7 @@
         savedScripts.forEach((s, idx) => {
             const item = document.createElement('div');
             item.className = 'script-item';
-            item.innerHTML = `<span>${s.name}</span><button class="node-delete" onclick="deleteScript(${idx}, event)">✕</button>`;
+            item.innerHTML = `<span>${s.name}</span><button class="node-btn delete" onclick="deleteScript(${idx}, event)">✕</button>`;
             item.onclick = () => loadGraphFromJSON(s.graph, s.name);
             list.appendChild(item);
         });
@@ -1421,7 +1505,7 @@
     };
 
     document.getElementById('clear-script-btn').onclick = () => {
-        if(confirm("Clear everything?")) { setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); }
+        if(confirm("Clear everything?")) { setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels();}
     };
 
     const modal = document.getElementById('save-modal');
@@ -1442,6 +1526,7 @@
         saveStorage();
         updateLabels();
         modal.classList.remove('active');
+        if (isMobile()) closeAllPanels();
     };
 
     function updateLabels() {
