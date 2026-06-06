@@ -1,0 +1,1355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VR Camera & Node Builder</title>
+    
+    <style>
+        /* Reverted to original minimalist styling */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background-color: #000;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-family: Arial, sans-serif;
+            user-select: none;
+            color: white;
+        }
+
+        /* --- Top Navigation --- */
+        #top-nav {
+            display: flex;
+            justify-content: center;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            gap: 15px;
+            z-index: 50;
+        }
+
+        .nav-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            backdrop-filter: blur(5px);
+            transition: background 0.2s;
+        }
+
+        .nav-btn:hover { background: rgba(255, 255, 255, 0.3); }
+        .nav-btn.active { background: rgba(255, 255, 255, 0.4); box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
+
+        /* --- View Containers --- */
+        .view-container {
+            flex: 1;
+            position: relative;
+            display: none;
+            width: 100%;
+            height: calc(100vh - 60px);
+        }
+        .view-container.active { display: flex; }
+
+        /* --- Camera Mode Styles --- */
+        #video-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .video-wrapper {
+            width: 50%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: transform 0.3s ease;
+            position: relative;
+        }
+
+        .video-feed { width: 100%; height: 100%; object-fit: cover; }
+        #single-video { width: 100%; height: 100%; object-fit: cover; display: none; }
+
+        .canvas-container {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+        }
+        .effect-canvas { width: 100%; height: 100%; }
+
+        #controls-panel {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            z-index: 10;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #controls-panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateY(20px);
+        }
+
+        .controls-row {
+            display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            backdrop-filter: blur(5px);
+            min-width: 120px;
+        }
+
+        button:hover { background: rgba(255, 255, 255, 0.3); }
+        button:active { transform: scale(0.98); }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        .info-row {
+            display: flex; justify-content: center; gap: 20px; color: white; font-size: 14px; margin-top: 5px;
+        }
+
+        /* --- Node Builder Mode Styles --- */
+        #builder-layout {
+            display: flex; width: 100%; height: 100%; background: #000;
+        }
+
+        /* Sidebar Panels */
+        .sidebar {
+            width: 250px; background: rgba(255, 255, 255, 0.05);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex; flex-direction: column;
+            padding: 15px; gap: 10px; overflow-y: auto;
+            backdrop-filter: blur(10px);
+        }
+        #scripts-panel { border-right: none; border-left: 1px solid rgba(255,255,255,0.1); }
+
+        .panel-title {
+            font-size: 12px; text-transform: uppercase;
+            letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center;
+        }
+
+        .palette-block {
+            padding: 10px; border-radius: 5px;
+            background: rgba(255, 255, 255, 0.15);
+            cursor: pointer; font-size: 14px;
+            display: flex; justify-content: space-between; align-items: center;
+            transition: background 0.2s;
+        }
+        .palette-block:hover { background: rgba(255, 255, 255, 0.25); }
+
+        /* Node Workspace */
+        #workspace {
+            flex: 1; position: relative; overflow: hidden;
+            background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        #builder-preview {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 320px;
+            height: 240px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to workspace */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.8);
+            overflow: hidden;
+        }
+
+        #preview-canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+
+        #wires-svg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 1;
+        }
+
+        .wire { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 3; pointer-events: stroke; cursor: pointer; transition: stroke 0.2s; }
+        .wire:hover { stroke: rgba(255,255,255,1); }
+        .wire.active { stroke: #3b82f6; stroke-dasharray: 5,5; animation: dash 1s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -10; } }
+
+        .node {
+            position: absolute; background: rgba(20, 20, 20, 0.9);
+            border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
+            min-width: 180px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+            backdrop-filter: blur(10px); display: flex; flex-direction: column;
+        }
+        
+        .node.error { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+
+        .node-header {
+            padding: 8px 12px; background: rgba(255,255,255,0.1);
+            border-top-left-radius: 7px; border-top-right-radius: 7px;
+            cursor: grab; display: flex; justify-content: space-between; align-items: center;
+            font-weight: bold; font-size: 14px;
+        }
+        .node-header:active { cursor: grabbing; }
+
+        .node-delete {
+            background: transparent; color: #aaa; border: none; padding: 0; min-width: auto;
+            font-size: 12px; cursor: pointer;
+        }
+        .node-delete:hover { color: #ff5555; background: transparent;}
+
+        .node-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 12px; }
+
+        .port-row { display: flex; justify-content: space-between; position: relative; }
+        .port-label { color: #bbb; }
+        
+        .port {
+            width: 12px; height: 12px; background: #fff; border-radius: 50%;
+            position: absolute; top: 50%; transform: translateY(-50%);
+            cursor: crosshair; border: 2px solid #333; z-index: 3;
+            transition: transform 0.1s;
+        }
+        .port:hover { transform: translateY(-50%) scale(1.3); background: #3b82f6;}
+        
+        .port-in { left: -16px; }
+        .port-out { right: -16px; }
+
+        .param-group { display: flex; flex-direction: column; gap: 2px; }
+        input[type="range"] { width: 100%; cursor: pointer; }
+        select {
+            padding: 5px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px;
+        }
+        option { background: #333; }
+
+        .script-item {
+            padding: 10px; background: rgba(255,255,255,0.1);
+            border-radius: 5px; display: flex; justify-content: space-between;
+            align-items: center; cursor: pointer; margin-bottom: 5px;
+        }
+        .script-item:hover { background: rgba(255,255,255,0.2); }
+
+        /* Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 100;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.2s;
+        }
+        .modal-overlay.active { opacity: 1; pointer-events: auto; }
+        .modal {
+            background: #111; padding: 20px; border-radius: 8px;
+            width: 90%; max-width: 350px; border: 1px solid rgba(255,255,255,0.2);
+        }
+        .modal input {
+            width: 100%; padding: 10px; border-radius: 4px;
+            border: 1px solid #444; background: #222; color: white; margin: 15px 0;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation -->
+    <nav id="top-nav">
+        <button class="nav-btn active" id="nav-camera">Camera View</button>
+        <button class="nav-btn" id="nav-builder">Script Builder</button>
+    </nav>
+
+    <!-- Camera Mode View -->
+    <div id="view-camera" class="view-container active">
+        <div id="video-container">
+            <div class="video-wrapper" id="wrapper-left">
+                <video id="video-left" class="video-feed" autoplay playsinline></video>
+                <div class="canvas-container"><canvas id="canvas-left" class="effect-canvas"></canvas></div>
+            </div>
+            <div class="video-wrapper" id="wrapper-right">
+                <video id="video-right" class="video-feed" autoplay playsinline></video>
+                <div class="canvas-container"><canvas id="canvas-right" class="effect-canvas"></canvas></div>
+            </div>
+        </div>
+
+        <video id="single-video" autoplay playsinline></video>
+        <div class="canvas-container" id="single-canvas-wrapper">
+            <canvas id="canvas-single" class="effect-canvas"></canvas>
+        </div>
+
+        <div id="controls-panel">
+            <div class="controls-row">
+                <button id="start-camera">Start Camera</button>
+                <button id="stop-camera" disabled>Stop Camera</button>
+                <button id="switch-camera">Switch Camera</button>
+                <button id="toggle-vr">Enable VR View</button>
+            </div>
+            <div class="controls-row" id="vr-offset-controls" style="display: none;">
+                <button id="offset-in">Move Apart</button>
+                <button id="offset-out">Move Together</button>
+                <button id="offset-reset">Reset Offset</button>
+            </div>
+            <div class="info-row">
+                <span id="active-script-label">Active Script: Standard</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Builder Mode View -->
+    <div id="view-builder" class="view-container">
+        <div id="builder-layout">
+            
+            <!-- Palette Sidebar -->
+            <div class="sidebar" id="palette-panel">
+                <div class="panel-title">Add Nodes</div>
+                <div id="blocks-palette"></div>
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                <div style="font-size: 11px; color: #aaa; text-align: center;">
+                    Drag from an Output port to an Input port to connect.<br><br>
+                    Click a wire to view the delete option, or double-click to fast-delete.
+                </div>
+            </div>
+
+            <!-- Workspace -->
+            <div id="workspace">
+                <svg id="wires-svg"></svg>
+                <div id="nodes-container"></div>
+                
+                <!-- Builder Preview Window -->
+                <div id="builder-preview">
+                    <canvas id="preview-canvas"></canvas>
+                </div>
+            </div>
+
+            <!-- Save/Load Sidebar -->
+            <div class="sidebar" id="scripts-panel">
+                <div class="panel-title">Scripts</div>
+                <button id="save-script-btn" style="width: 100%;">Save Graph</button>
+                <button id="clear-script-btn" style="width: 100%; margin-top: 5px;">Clear Workspace</button>
+                <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                <div id="saved-scripts-list" style="display: flex; flex-direction: column; gap: 0;"></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Save Modal -->
+    <div class="modal-overlay" id="save-modal">
+        <div class="modal">
+            <h3 style="text-align: center;">Save Script</h3>
+            <input type="text" id="save-script-name" placeholder="Enter script name..." autocomplete="off">
+            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="cancel-save">Cancel</button>
+                <button id="confirm-save" style="background: rgba(255,255,255,0.4);">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    // --- Config & Node Definitions ---
+    const NODE_DEFS = {
+        camera: { label: 'Camera In', inPorts: [], outPorts: ['video'], color: 'rgba(255, 255, 255, 0.1)', maxOne: true },
+        screen: { label: 'Screen Out', inPorts: ['render'], outPorts: [], color: 'rgba(255, 255, 255, 0.1)', maxOne: true },
+        
+        // Adjustments
+        grayscale: { 
+            label: 'Grayscale', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] 
+        },
+        invert: { 
+            label: 'Invert', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] 
+        },
+        tint: { 
+            label: 'RGB Filter', inPorts: ['in'], outPorts: ['out'], 
+            params: [
+                { id: 'r', label: 'Red Channel', type: 'range', min: 0, max: 255, default: 255 },
+                { id: 'g', label: 'Green Channel', type: 'range', min: 0, max: 255, default: 255 },
+                { id: 'b', label: 'Blue Channel', type: 'range', min: 0, max: 255, default: 255 }
+            ] 
+        },
+        adjust: { 
+            label: 'Bright / Contrast', inPorts: ['in'], outPorts: ['out'], 
+            params: [
+                { id: 'bright', label: 'Brightness', type: 'range', min: -100, max: 100, default: 0 },
+                { id: 'contrast', label: 'Contrast', type: 'range', min: -100, max: 100, default: 0 }
+            ] 
+        },
+        
+        // Filters
+        bandpass: { 
+            label: 'Band Pass', inPorts: ['in'], outPorts: ['out'], 
+            params: [
+                { id: 'median', label: 'Target Luma', type: 'range', min: 0, max: 255, default: 127 },
+                { id: 'range', label: 'Width', type: 'range', min: 0, max: 255, default: 50 }
+            ] 
+        },
+        edge: { 
+            label: 'Edge Detect', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'threshold', label: 'Threshold', type: 'range', min: 1, max: 255, default: 25 }] 
+        },
+        mask: { 
+            label: 'Luma Mask', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'invert', label: 'Invert Mask', type: 'select', options: ['false', 'true'], default: 'false' }] 
+        },
+
+        // Temporal / Mixing
+        delay: { 
+            label: 'Delay', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'frames', label: 'Delay Frames', type: 'range', min: 1, max: 60, default: 15 }] 
+        },
+        accumulate: { 
+            label: 'Long Exposure', inPorts: ['in'], outPorts: ['out'], 
+            params: [
+                { id: 'frames', label: 'Frame Loop', type: 'range', min: 2, max: 60, default: 15 },
+                { id: 'mode', label: 'Blend Mode', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }
+            ] 
+        },
+        blend: { 
+            label: 'Blend', inPorts: ['bg', 'fg'], outPorts: ['out'], 
+            params: [
+                { id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' },
+                { id: 'mix', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 50 }
+            ] 
+        }
+    };
+
+    // --- State ---
+    let nodes = {}; // { id: { id, type, x, y, params, domElement, ctx } }
+    let wires = []; // { id, fromNode, fromPort, toNode, toPort }
+    
+    let activeScriptName = "Standard";
+    let savedScripts = [];
+
+    // Interaction state
+    let draggedNode = null;
+    let dragOffsetX = 0, dragOffsetY = 0;
+    
+    let draggingWire = null; // { fromNode, fromPort, svgLine }
+    let selectedWire = null; // ID of the currently selected wire
+
+    // Evaluation State
+    let evalOrder = [];
+    let hasCycleError = false;
+
+    // Camera/VR State
+    let stream = null;
+    let usingBackCamera = true;
+    let vrMode = false;
+    let vrOffset = 0;
+    let renderLoopId = null;
+    let hideControlsTimeout = null;
+    let videoWidth = 640; // Default fallback
+    let videoHeight = 480;
+
+    // --- DOM Elements ---
+    const workspace = document.getElementById('workspace');
+    const nodesContainer = document.getElementById('nodes-container');
+    const wiresSvg = document.getElementById('wires-svg');
+    const videoLeft = document.getElementById('video-left');
+    const videoRight = document.getElementById('video-right');
+    const singleVideo = document.getElementById('single-video');
+    const canvasLeft = document.getElementById('canvas-left');
+    const canvasRight = document.getElementById('canvas-right');
+    const canvasSingle = document.getElementById('canvas-single');
+    const previewCanvas = document.getElementById('preview-canvas'); // Live Preview
+    const camControlsPanel = document.getElementById('controls-panel');
+    const viewCam = document.getElementById('view-camera');
+
+    // --- Helper: IDs ---
+    function generateId() { return Math.random().toString(36).substr(2, 9); }
+
+    // --- Graph Engine ---
+    function rebuildGraphOrder() {
+        // Topological Sort
+        hasCycleError = false;
+        let inDegree = {};
+        let adjList = {};
+        
+        Object.keys(nodes).forEach(id => {
+            inDegree[id] = 0;
+            adjList[id] = [];
+            nodes[id].domElement.classList.remove('error');
+        });
+
+        wires.forEach(w => {
+            adjList[w.fromNode].push(w.toNode);
+            inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1;
+        });
+
+        let queue = [];
+        Object.keys(inDegree).forEach(id => {
+            if (inDegree[id] === 0) queue.push(id);
+        });
+
+        evalOrder = [];
+        let count = 0;
+        
+        while(queue.length > 0) {
+            let curr = queue.shift();
+            evalOrder.push(curr);
+            count++;
+            
+            adjList[curr].forEach(neighbor => {
+                inDegree[neighbor]--;
+                if (inDegree[neighbor] === 0) queue.push(neighbor);
+            });
+        }
+
+        if (count !== Object.keys(nodes).length) {
+            hasCycleError = true;
+            // Mark unvisited nodes as error
+            Object.keys(nodes).forEach(id => {
+                if (!evalOrder.includes(id)) nodes[id].domElement.classList.add('error');
+            });
+            console.warn("Cycle detected in graph!");
+        }
+    }
+
+    function createInternalCanvas(width, height) {
+        const c = document.createElement('canvas');
+        c.width = width; c.height = height;
+        return c;
+    }
+
+    // Process single frame through the node graph
+    function evaluateFrame() {
+        if (!stream || hasCycleError || evalOrder.length === 0) return;
+        
+        // Grab current source dimension
+        if (singleVideo.videoWidth) {
+            videoWidth = singleVideo.videoWidth;
+            videoHeight = singleVideo.videoHeight;
+        }
+
+        // Initialize node buffers dynamically
+        Object.values(nodes).forEach(node => {
+            if (!node.canvas || node.canvas.width !== videoWidth) {
+                node.canvas = createInternalCanvas(videoWidth, videoHeight);
+                node.ctx = node.canvas.getContext('2d', { willReadFrequently: true });
+                if (node.type === 'delay' || node.type === 'accumulate') node.buffer = []; // Reset buffers
+            }
+        });
+
+        // Evaluate in topological order
+        for (let nodeId of evalOrder) {
+            const node = nodes[nodeId];
+            const def = NODE_DEFS[node.type];
+            
+            if (node.type === 'camera') {
+                node.ctx.drawImage(singleVideo, 0, 0, videoWidth, videoHeight);
+            } 
+            else if (node.type === 'screen') {
+                const wire = wires.find(w => w.toNode === nodeId && w.toPort === 'render');
+                if (wire) {
+                    const inputCanvas = nodes[wire.fromNode].canvas;
+                    renderFinalOutput(inputCanvas);
+                } else {
+                    renderFinalOutput(null); // Clear screen if disconnected
+                }
+            } 
+            else {
+                // Determine inputs
+                let inputs = {};
+                def.inPorts.forEach(port => {
+                    const wire = wires.find(w => w.toNode === nodeId && w.toPort === port);
+                    inputs[port] = wire ? nodes[wire.fromNode].canvas : null;
+                });
+
+                // Apply node effect
+                applyNodeEffect(node, inputs);
+            }
+        }
+    }
+
+    function applyNodeEffect(node, inputs) {
+        const { type, params, ctx, canvas } = node;
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0,0,w,h);
+
+        // --- Temporal Effects ---
+        if (type === 'delay') {
+            const inCanvas = inputs['in'];
+            if (!inCanvas) return;
+            
+            const reqFrames = parseInt(params.frames || 15);
+            if (!node.buffer) node.buffer = [];
+            
+            const tempCtx = inCanvas.getContext('2d', {willReadFrequently:true});
+            const frameData = tempCtx.getImageData(0,0,w,h);
+            
+            while (node.buffer.length < reqFrames) node.buffer.push(new Uint8ClampedArray(w*h*4));
+            if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
+            
+            node.bufIndex = (node.bufIndex || 0) % reqFrames;
+            node.buffer[node.bufIndex].set(frameData.data);
+            
+            let delayedIndex = (node.bufIndex + 1) % reqFrames;
+            let outData = node.buffer[delayedIndex] || node.buffer[0];
+            
+            const outImg = ctx.createImageData(w, h);
+            outImg.data.set(outData);
+            ctx.putImageData(outImg, 0, 0);
+            
+            node.bufIndex++;
+            return;
+        }
+
+        if (type === 'accumulate') {
+            const inCanvas = inputs['in'];
+            if (!inCanvas) return;
+            
+            const reqFrames = parseInt(params.frames || 15);
+            const mode = params.mode || 'average';
+            
+            if (!node.buffer) node.buffer = [];
+            const tempCtx = inCanvas.getContext('2d', {willReadFrequently:true});
+            const frameData = tempCtx.getImageData(0,0,w,h);
+            
+            while (node.buffer.length < reqFrames) node.buffer.push(new Uint8ClampedArray(w*h*4));
+            if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
+            
+            node.bufIndex = (node.bufIndex || 0) % reqFrames;
+            node.buffer[node.bufIndex].set(frameData.data);
+            
+            const outImg = ctx.createImageData(w, h);
+            const out = outImg.data;
+            const numPixels = w * h * 4;
+            
+            // Track how many frames actually exist to prevent black frames at start
+            if(node.frameCount === undefined) node.frameCount = 0;
+            if(node.frameCount < reqFrames) node.frameCount++;
+            const activeFrames = Math.min(node.frameCount, reqFrames);
+
+            if (mode === 'average') {
+                for (let i = 0; i < numPixels; i += 4) {
+                    let r=0, g=0, b=0;
+                    for(let f=0; f<activeFrames; f++) {
+                        r += node.buffer[f][i];
+                        g += node.buffer[f][i+1];
+                        b += node.buffer[f][i+2];
+                    }
+                    out[i] = r / activeFrames;
+                    out[i+1] = g / activeFrames;
+                    out[i+2] = b / activeFrames;
+                    out[i+3] = 255;
+                }
+            } else if (mode === 'lighten') {
+                for (let i = 0; i < numPixels; i += 4) {
+                    let r=0, g=0, b=0;
+                    for(let f=0; f<activeFrames; f++) {
+                        if(node.buffer[f][i] > r) r = node.buffer[f][i];
+                        if(node.buffer[f][i+1] > g) g = node.buffer[f][i+1];
+                        if(node.buffer[f][i+2] > b) b = node.buffer[f][i+2];
+                    }
+                    out[i]=r; out[i+1]=g; out[i+2]=b; out[i+3]=255;
+                }
+            } else if (mode === 'darken') {
+                for (let i = 0; i < numPixels; i += 4) {
+                    let r=255, g=255, b=255;
+                    for(let f=0; f<activeFrames; f++) {
+                        if(node.buffer[f][i] < r) r = node.buffer[f][i];
+                        if(node.buffer[f][i+1] < g) g = node.buffer[f][i+1];
+                        if(node.buffer[f][i+2] < b) b = node.buffer[f][i+2];
+                    }
+                    out[i]=r; out[i+1]=g; out[i+2]=b; out[i+3]=255;
+                }
+            }
+            
+            ctx.putImageData(outImg, 0, 0);
+            node.bufIndex++;
+            return;
+        }
+
+        // --- Multi-Input Blending ---
+        if (type === 'blend') {
+            const bgC = inputs['bg'];
+            const fgC = inputs['fg'];
+            
+            if (!bgC && !fgC) return;
+            if (!bgC || !fgC) {
+                ctx.drawImage(bgC || fgC, 0, 0);
+                return;
+            }
+
+            const bgCtx = bgC.getContext('2d');
+            const fgCtx = fgC.getContext('2d');
+            const bgData = bgCtx.getImageData(0,0,w,h).data;
+            const fgData = fgCtx.getImageData(0,0,w,h).data;
+            const outImg = ctx.createImageData(w,h);
+            const out = outImg.data;
+            
+            const mode = params.mode || 'mix';
+            const mixAmt = parseFloat(params.mix || 50) / 100;
+            const len = bgData.length;
+
+            for (let i = 0; i < len; i += 4) {
+                let r1=bgData[i], g1=bgData[i+1], b1=bgData[i+2];
+                let r2=fgData[i], g2=fgData[i+1], b2=fgData[i+2];
+                
+                let r, g, b;
+                if (mode === 'add') {
+                    r = Math.min(255, r1 + r2); g = Math.min(255, g1 + g2); b = Math.min(255, b1 + b2);
+                } else if (mode === 'multiply') {
+                    r = (r1 * r2) / 255; g = (g1 * g2) / 255; b = (b1 * b2) / 255;
+                } else if (mode === 'screen') {
+                    r = 255 - ((255-r1)*(255-r2))/255; 
+                    g = 255 - ((255-g1)*(255-g2))/255; 
+                    b = 255 - ((255-b1)*(255-b2))/255;
+                } else if (mode === 'difference') {
+                    r = Math.abs(r1 - r2); 
+                    g = Math.abs(g1 - g2); 
+                    b = Math.abs(b1 - b2);
+                } else { // mix
+                    r = r2; g = g2; b = b2; 
+                }
+
+                out[i]   = r1 + (r - r1)*mixAmt;
+                out[i+1] = g1 + (g - g1)*mixAmt;
+                out[i+2] = b1 + (b - b1)*mixAmt;
+                out[i+3] = 255;
+            }
+            ctx.putImageData(outImg, 0, 0);
+            return;
+        }
+
+        // --- Single-Input Processors ---
+        const inCanvas = inputs['in'];
+        if (!inCanvas) return;
+        ctx.drawImage(inCanvas, 0, 0);
+        
+        const imgData = ctx.getImageData(0,0,w,h);
+        const data = imgData.data;
+        const len = data.length;
+
+        if (type === 'grayscale') {
+            const amt = parseFloat(params.amount||100)/100;
+            for (let i=0; i<len; i+=4) {
+                let r=data[i], g=data[i+1], b=data[i+2];
+                let gray = 0.299*r + 0.587*g + 0.114*b;
+                data[i] = r + (gray-r)*amt; data[i+1] = g + (gray-g)*amt; data[i+2] = b + (gray-b)*amt;
+            }
+        } 
+        else if (type === 'invert') {
+            const amt = parseFloat(params.amount||100)/100;
+            for (let i=0; i<len; i+=4) {
+                data[i] += (255 - 2*data[i])*amt;
+                data[i+1] += (255 - 2*data[i+1])*amt;
+                data[i+2] += (255 - 2*data[i+2])*amt;
+            }
+        } 
+        else if (type === 'tint') {
+            const rF = parseFloat(params.r!==undefined?params.r:255)/255;
+            const gF = parseFloat(params.g!==undefined?params.g:255)/255;
+            const bF = parseFloat(params.b!==undefined?params.b:255)/255;
+            for (let i=0; i<len; i+=4) {
+                data[i]=data[i]*rF; data[i+1]=data[i+1]*gF; data[i+2]=data[i+2]*bF;
+            }
+        } 
+        else if (type === 'adjust') {
+            const bright = parseFloat(params.bright||0);
+            const contrast = parseFloat(params.contrast||0);
+            const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+            for (let i=0; i<len; i+=4) {
+                data[i] = factor * (data[i] - 128) + 128 + bright;
+                data[i+1] = factor * (data[i+1] - 128) + 128 + bright;
+                data[i+2] = factor * (data[i+2] - 128) + 128 + bright;
+            }
+        }
+        else if (type === 'bandpass') {
+            const med = parseInt(params.median||127), rh = parseInt(params.range||50)/2;
+            for (let i=0; i<len; i+=4) {
+                let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+                if (Math.abs(gray - med) > rh) { data[i]=0; data[i+1]=0; data[i+2]=0; }
+            }
+        } 
+        else if (type === 'mask') {
+            const inv = params.invert === 'true';
+            for (let i=0; i<len; i+=4) {
+                let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+                data[i+3] = inv ? (255 - gray) : gray; // Map Luma to Alpha
+            }
+        }
+        else if (type === 'edge') {
+            const thresh = parseInt(params.threshold || 25);
+            const gray = new Uint8Array(w * h);
+            
+            // Fast grayscale pass
+            for(let i=0, j=0; i<len; i+=4, j++) {
+                gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+            }
+            // Edge calculation pass
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const idx = y * w + x;
+                    const c = gray[idx];
+                    let right = x < w - 1 ? gray[idx + 1] : c;
+                    let bottom = y < h - 1 ? gray[idx + w] : c;
+                    
+                    const diff = Math.abs(c - right) + Math.abs(c - bottom);
+                    const outIdx = idx * 4;
+                    const val = diff > thresh ? 255 : 0;
+                    
+                    data[outIdx] = val;
+                    data[outIdx+1] = val;
+                    data[outIdx+2] = val;
+                    data[outIdx+3] = 255;
+                }
+            }
+        }
+
+        ctx.putImageData(imgData, 0, 0);
+    }
+
+    function renderFinalOutput(sourceCanvas) {
+        const targets = vrMode ? [canvasLeft, canvasRight] : [canvasSingle];
+        
+        // Handle hide/show logic cleanly
+        if (!sourceCanvas) {
+            canvasLeft.style.display = 'none';
+            canvasRight.style.display = 'none';
+            canvasSingle.style.display = 'none';
+            previewCanvas.style.display = 'none';
+            return;
+        }
+
+        // Render to Main Screens
+        targets.forEach(c => {
+            c.style.display = 'block';
+            if (c.width !== sourceCanvas.width) c.width = sourceCanvas.width;
+            if (c.height !== sourceCanvas.height) c.height = sourceCanvas.height;
+            const ctx = c.getContext('2d');
+            ctx.drawImage(sourceCanvas, 0, 0);
+        });
+
+        // Hide unused canvases
+        if (vrMode) canvasSingle.style.display = 'none';
+        else { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; }
+
+        // Render to Mini Builder Preview
+        previewCanvas.style.display = 'block';
+        if (previewCanvas.width !== sourceCanvas.width) previewCanvas.width = sourceCanvas.width;
+        if (previewCanvas.height !== sourceCanvas.height) previewCanvas.height = sourceCanvas.height;
+        previewCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
+    }
+
+    function renderLoop() {
+        evaluateFrame();
+        renderLoopId = requestAnimationFrame(renderLoop);
+    }
+
+    // --- UI: Node Workspace Rendering ---
+
+    function createNode(type, x, y, restoredId = null, restoredParams = null) {
+        const def = NODE_DEFS[type];
+        if (def.maxOne) {
+            const existing = Object.values(nodes).find(n => n.type === type);
+            if (existing) return existing.id; // Enforce singletons for Cam/Screen
+        }
+
+        const id = restoredId || generateId();
+        const el = document.createElement('div');
+        el.className = 'node';
+        el.id = `node-${id}`;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+
+        let bodyHtml = '';
+        const params = restoredParams || {};
+
+        if (def.inPorts.length > 0 || def.outPorts.length > 0) {
+            const maxPorts = Math.max(def.inPorts.length, def.outPorts.length);
+            for(let i=0; i<maxPorts; i++) {
+                const inP = def.inPorts[i];
+                const outP = def.outPorts[i];
+                bodyHtml += `<div class="port-row">
+                    <div class="port-label">${inP ? inP : ''}</div>
+                    ${inP ? `<div class="port port-in" data-node="${id}" data-port="${inP}"></div>` : ''}
+                    <div class="port-label">${outP ? outP : ''}</div>
+                    ${outP ? `<div class="port port-out" data-node="${id}" data-port="${outP}"></div>` : ''}
+                </div>`;
+            }
+        }
+
+        if (def.params) {
+            def.params.forEach(p => {
+                const val = params[p.id] !== undefined ? params[p.id] : p.default;
+                params[p.id] = val; // ensure mapped
+                
+                if (p.type === 'range') {
+                    bodyHtml += `<div class="param-group">
+                        <div style="display:flex; justify-content:space-between">
+                            <span>${p.label}</span><span id="lbl-${id}-${p.id}">${val}</span>
+                        </div>
+                        <input type="range" min="${p.min}" max="${p.max}" value="${val}" 
+                            oninput="updateParam('${id}','${p.id}',this.value)">
+                    </div>`;
+                } else if (p.type === 'select') {
+                    let opts = p.options.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('');
+                    bodyHtml += `<div class="param-group">
+                        <span>${p.label}</span>
+                        <select onchange="updateParam('${id}','${p.id}',this.value)">${opts}</select>
+                    </div>`;
+                }
+            });
+        }
+
+        const canDelete = !def.maxOne;
+
+        el.innerHTML = `
+            <div class="node-header">
+                ${def.label}
+                ${canDelete ? `<button class="node-delete" onclick="deleteNode('${id}')">✕</button>` : '<span></span>'}
+            </div>
+            <div class="node-body">${bodyHtml}</div>
+        `;
+
+        nodesContainer.appendChild(el);
+        
+        nodes[id] = { id, type, params, domElement: el };
+        
+        // Header dragging
+        const header = el.querySelector('.node-header');
+        header.addEventListener('mousedown', (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            draggedNode = id;
+            const rect = el.getBoundingClientRect();
+            // Local offset within the node header
+            dragOffsetX = e.clientX - rect.left;
+            dragOffsetY = e.clientY - rect.top;
+        });
+
+        // Port interactions
+        el.querySelectorAll('.port').forEach(portEl => {
+            portEl.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                const isOut = portEl.classList.contains('port-out');
+                if (!isOut) {
+                    // If grabbing an input port, detach existing wire
+                    const existingWireIdx = wires.findIndex(w => w.toNode === id && w.toPort === portEl.dataset.port);
+                    if (existingWireIdx >= 0) {
+                        const w = wires[existingWireIdx];
+                        wires.splice(existingWireIdx, 1);
+                        startWireDrag(w.fromNode, w.fromPort, e.clientX, e.clientY);
+                        rebuildGraphOrder();
+                        drawWires();
+                    }
+                    return;
+                }
+                startWireDrag(id, portEl.dataset.port, e.clientX, e.clientY);
+            });
+            
+            portEl.addEventListener('mouseup', (e) => {
+                if (draggingWire && portEl.classList.contains('port-in')) {
+                    // Valid connection check
+                    if (draggingWire.fromNode === id) return; // Self connection
+                    
+                    // Remove existing wire to this input if exists
+                    wires = wires.filter(w => !(w.toNode === id && w.toPort === portEl.dataset.port));
+                    
+                    wires.push({
+                        id: generateId(),
+                        fromNode: draggingWire.fromNode,
+                        fromPort: draggingWire.fromPort,
+                        toNode: id,
+                        toPort: portEl.dataset.port
+                    });
+                    
+                    cleanupWireDrag();
+                    rebuildGraphOrder();
+                    drawWires();
+                }
+            });
+        });
+
+        rebuildGraphOrder();
+        drawWires();
+        return id;
+    }
+
+    window.updateParam = function(nodeId, paramId, val) {
+        if (nodes[nodeId]) {
+            nodes[nodeId].params[paramId] = val;
+            const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`);
+            if (lbl) lbl.textContent = val;
+        }
+    };
+
+    window.deleteNode = function(id) {
+        if (!nodes[id]) return;
+        nodes[id].domElement.remove();
+        delete nodes[id];
+        // Clean wires
+        wires = wires.filter(w => w.fromNode !== id && w.toNode !== id);
+        rebuildGraphOrder();
+        drawWires();
+    };
+
+    // --- Wire Drawing Logic ---
+    function getPortPos(nodeId, portName, isOut) {
+        const node = nodes[nodeId];
+        if (!node) return {x:0, y:0};
+        const el = node.domElement;
+        const portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
+        if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
+        
+        const portRect = portEl.getBoundingClientRect();
+        const wsRect = workspace.getBoundingClientRect();
+        return {
+            x: portRect.left - wsRect.left + portRect.width/2,
+            y: portRect.top - wsRect.top + portRect.height/2
+        };
+    }
+
+    function drawWires() {
+        wiresSvg.innerHTML = '';
+        wires.forEach(w => {
+            const p1 = getPortPos(w.fromNode, w.fromPort, true);
+            const p2 = getPortPos(w.toNode, w.toPort, false);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'wire');
+            path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
+            path.dataset.wireId = w.id;
+            
+            if (selectedWire === w.id) {
+                path.style.stroke = '#ef4444'; // Highlight selected wire in red
+            }
+            
+            // Interaction to select
+            path.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                selectedWire = w.id;
+                drawWires();
+            });
+
+            // Double click to fast delete wire
+            path.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                wires = wires.filter(wire => wire.id !== w.id);
+                selectedWire = null;
+                rebuildGraphOrder();
+                drawWires();
+            });
+            wiresSvg.appendChild(path);
+
+            // Draw a quick delete button over selected wires
+            if (selectedWire === w.id) {
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+
+                const delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                delBg.setAttribute('cx', midX);
+                delBg.setAttribute('cy', midY);
+                delBg.setAttribute('r', 12);
+                delBg.setAttribute('fill', '#ef4444');
+                delBg.style.cursor = 'pointer';
+                delBg.style.pointerEvents = 'all';
+
+                const delText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                delText.setAttribute('x', midX);
+                delText.setAttribute('y', midY + 4); // Offset text slightly to center
+                delText.setAttribute('text-anchor', 'middle');
+                delText.setAttribute('fill', 'white');
+                delText.setAttribute('font-size', '12px');
+                delText.setAttribute('font-weight', 'bold');
+                delText.style.cursor = 'pointer';
+                delText.style.pointerEvents = 'none';
+                delText.textContent = '✕';
+
+                delBg.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    wires = wires.filter(wire => wire.id !== w.id);
+                    selectedWire = null;
+                    rebuildGraphOrder();
+                    drawWires();
+                });
+
+                wiresSvg.appendChild(delBg);
+                wiresSvg.appendChild(delText);
+            }
+        });
+
+        if (draggingWire) {
+            const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true);
+            const wsRect = workspace.getBoundingClientRect();
+            const p2 = { x: draggingWire.mouseX - wsRect.left, y: draggingWire.mouseY - wsRect.top };
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'wire active');
+            path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
+            wiresSvg.appendChild(path);
+        }
+    }
+
+    function startWireDrag(nodeId, port, mx, my) {
+        draggingWire = { fromNode: nodeId, fromPort: port, mouseX: mx, mouseY: my };
+        drawWires();
+    }
+    function cleanupWireDrag() {
+        draggingWire = null;
+        drawWires();
+    }
+
+    // Workspace Events
+    window.addEventListener('mousemove', (e) => {
+        if (draggedNode && nodes[draggedNode]) {
+            const el = nodes[draggedNode].domElement;
+            const wsRect = workspace.getBoundingClientRect();
+            // Calculate relative offset based on local header mouse offset and the workspace parent box
+            let nx = e.clientX - dragOffsetX - wsRect.left;
+            let ny = e.clientY - dragOffsetY - wsRect.top;
+            el.style.left = `${Math.max(0, nx)}px`;
+            el.style.top = `${Math.max(0, ny)}px`;
+            drawWires();
+        }
+        if (draggingWire) {
+            draggingWire.mouseX = e.clientX;
+            draggingWire.mouseY = e.clientY;
+            drawWires();
+        }
+    });
+
+    window.addEventListener('mouseup', () => {
+        draggedNode = null;
+        if (draggingWire) cleanupWireDrag();
+    });
+
+    // Clear wire selection if you click on the workspace background
+    workspace.addEventListener('mousedown', (e) => {
+        if (e.target === workspace || e.target === wiresSvg) {
+            if (selectedWire) {
+                selectedWire = null;
+                drawWires();
+            }
+        }
+    });
+
+    // --- Init & Save/Load ---
+
+    function initBuilder() {
+        const pal = document.getElementById('blocks-palette');
+        Object.keys(NODE_DEFS).forEach(k => {
+            if (NODE_DEFS[k].maxOne) return; // Don't allow manual spawn of special nodes
+            const b = document.createElement('div');
+            b.className = 'palette-block';
+            b.innerHTML = `<span>${NODE_DEFS[k].label}</span><span>+</span>`;
+            b.onclick = () => createNode(k, 250, 100);
+            pal.appendChild(b);
+        });
+
+        loadStorage();
+        if (Object.keys(nodes).length === 0) setupDefaultGraph();
+    }
+
+    function setupDefaultGraph() {
+        document.getElementById('nodes-container').innerHTML = '';
+        nodes = {}; wires = [];
+        const cId = createNode('camera', 50, 200);
+        const sId = createNode('screen', 400, 200);
+        wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
+        rebuildGraphOrder();
+        drawWires();
+        activeScriptName = "Standard (Default)";
+        updateLabels();
+    }
+
+    function saveGraphToJSON() {
+        return {
+            nodes: Object.values(nodes).map(n => ({
+                id: n.id, type: n.type, params: n.params,
+                x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top)
+            })),
+            wires: wires
+        };
+    }
+
+    function loadGraphFromJSON(data, name) {
+        document.getElementById('nodes-container').innerHTML = '';
+        nodes = {}; wires = [];
+        data.nodes.forEach(n => createNode(n.type, n.x, n.y, n.id, n.params));
+        wires = data.wires;
+        activeScriptName = name;
+        rebuildGraphOrder();
+        drawWires();
+        updateLabels();
+    }
+
+    function loadStorage() {
+        try {
+            const raw = localStorage.getItem('vrcam_node_scripts');
+            if (raw) savedScripts = JSON.parse(raw);
+        } catch(e) {}
+        renderScriptList();
+    }
+
+    function saveStorage() {
+        localStorage.setItem('vrcam_node_scripts', JSON.stringify(savedScripts));
+        renderScriptList();
+    }
+
+    function renderScriptList() {
+        const list = document.getElementById('saved-scripts-list');
+        list.innerHTML = '';
+        savedScripts.forEach((s, idx) => {
+            const item = document.createElement('div');
+            item.className = 'script-item';
+            item.innerHTML = `<span>${s.name}</span><button class="node-delete" onclick="deleteScript(${idx}, event)">✕</button>`;
+            item.onclick = () => loadGraphFromJSON(s.graph, s.name);
+            list.appendChild(item);
+        });
+    }
+
+    window.deleteScript = function(idx, e) {
+        e.stopPropagation();
+        savedScripts.splice(idx, 1);
+        saveStorage();
+    };
+
+    document.getElementById('clear-script-btn').onclick = () => {
+        if(confirm("Clear everything?")) { setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); }
+    };
+
+    const modal = document.getElementById('save-modal');
+    document.getElementById('save-script-btn').onclick = () => {
+        modal.classList.add('active');
+        document.getElementById('save-script-name').value = activeScriptName.replace(' (Default)', '');
+    };
+    document.getElementById('cancel-save').onclick = () => modal.classList.remove('active');
+    document.getElementById('confirm-save').onclick = () => {
+        const name = document.getElementById('save-script-name').value || 'My Graph';
+        const graph = saveGraphToJSON();
+        
+        // Replace or add
+        const exIdx = savedScripts.findIndex(s => s.name === name);
+        if (exIdx >= 0) savedScripts[exIdx].graph = graph;
+        else savedScripts.push({ name, graph });
+        
+        activeScriptName = name;
+        saveStorage();
+        updateLabels();
+        modal.classList.remove('active');
+    };
+
+    function updateLabels() {
+        document.getElementById('active-script-label').textContent = `Active Script: ${activeScriptName}`;
+    }
+
+    // --- Camera Control Logic ---
+    async function startCamera() {
+        try {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } }, audio: false
+            });
+            videoLeft.srcObject = stream; videoRight.srcObject = stream; singleVideo.srcObject = stream;
+            
+            document.getElementById('start-camera').disabled = true;
+            document.getElementById('stop-camera').disabled = false;
+            if (!renderLoopId) renderLoop();
+            triggerControlsFade();
+        } catch (e) { alert("Camera error: " + e.message); }
+    }
+
+    function stopCamera() {
+        if (stream) stream.getTracks().forEach(t => t.stop());
+        stream = null;
+        videoLeft.srcObject = null; videoRight.srcObject = null; singleVideo.srcObject = null;
+        document.getElementById('start-camera').disabled = false;
+        document.getElementById('stop-camera').disabled = true;
+        if (renderLoopId) { cancelAnimationFrame(renderLoopId); renderLoopId = null; }
+        renderFinalOutput(null);
+    }
+
+    document.getElementById('start-camera').onclick = startCamera;
+    document.getElementById('stop-camera').onclick = stopCamera;
+    document.getElementById('switch-camera').onclick = () => { usingBackCamera = !usingBackCamera; if (stream) startCamera(); };
+
+    // --- VR Mode Logic ---
+    function updateVRMode() {
+        if (vrMode) {
+            document.getElementById('video-container').style.display = 'flex';
+            singleVideo.style.display = 'none';
+            document.getElementById('single-canvas-wrapper').style.display = 'none';
+            document.getElementById('vr-offset-controls').style.display = 'flex';
+            document.getElementById('toggle-vr').textContent = 'Disable VR View';
+        } else {
+            document.getElementById('video-container').style.display = 'none';
+            singleVideo.style.display = 'block';
+            document.getElementById('single-canvas-wrapper').style.display = 'block';
+            document.getElementById('vr-offset-controls').style.display = 'none';
+            document.getElementById('toggle-vr').textContent = 'Enable VR View';
+        }
+        updateOffset();
+    }
+
+    document.getElementById('toggle-vr').onclick = () => { vrMode = !vrMode; updateVRMode(); triggerControlsFade(); };
+
+    function updateOffset() {
+        const wL = document.getElementById('wrapper-left');
+        const wR = document.getElementById('wrapper-right');
+        if (vrMode) {
+            wL.style.transform = `translateX(-${vrOffset}px)`;
+            wR.style.transform = `translateX(${vrOffset}px)`;
+        } else {
+            wL.style.transform = 'translateX(0)'; wR.style.transform = 'translateX(0)';
+        }
+    }
+
+    document.getElementById('offset-out').onclick = () => { vrOffset = Math.min(200, vrOffset + 10); updateOffset(); triggerControlsFade(); };
+    document.getElementById('offset-in').onclick = () => { vrOffset = Math.max(0, vrOffset - 10); updateOffset(); triggerControlsFade(); };
+    document.getElementById('offset-reset').onclick = () => { vrOffset = 0; updateOffset(); triggerControlsFade(); };
+
+    function triggerControlsFade() {
+        camControlsPanel.classList.remove('hidden');
+        if (hideControlsTimeout) clearTimeout(hideControlsTimeout);
+        hideControlsTimeout = setTimeout(() => { camControlsPanel.classList.add('hidden'); }, 4000);
+    }
+
+    viewCam.addEventListener('click', (e) => {
+        if (!e.target.closest('#controls-panel')) {
+            if (camControlsPanel.classList.contains('hidden')) triggerControlsFade();
+            else { camControlsPanel.classList.add('hidden'); clearTimeout(hideControlsTimeout); }
+        }
+    });
+
+    // --- Tab Navigation ---
+    document.getElementById('nav-camera').onclick = function() {
+        this.classList.add('active'); document.getElementById('nav-builder').classList.remove('active');
+        viewCam.classList.add('active'); document.getElementById('view-builder').classList.remove('active');
+        triggerControlsFade();
+    };
+    
+    document.getElementById('nav-builder').onclick = function() {
+        this.classList.add('active'); document.getElementById('nav-camera').classList.remove('active');
+        document.getElementById('view-builder').classList.add('active'); viewCam.classList.remove('active');
+        drawWires(); // Ensure paths compute properly after display:flex
+    };
+
+    // --- Boot ---
+    initBuilder();
+    updateVRMode();
+
+    // Adjust wires on window resize to keep connection points anchored
+    window.addEventListener('resize', drawWires);
+    </script>
+</body>
+</html>
