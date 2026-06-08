@@ -440,6 +440,14 @@
                 { id: 'contrast', label: 'Contrast', type: 'range', min: -100, max: 100, default: 0 }
             ] 
         },
+        hsv_adjust: { 
+            label: 'HSV Adjust', inPorts: ['in'], outPorts: ['out'], 
+            params: [
+                { id: 'h', label: 'Hue Shift', type: 'range', min: -180, max: 180, default: 0 },
+                { id: 's', label: 'Saturation (%)', type: 'range', min: 0, max: 200, default: 100 },
+                { id: 'v', label: 'Value (%)', type: 'range', min: 0, max: 200, default: 100 }
+            ] 
+        },
         transform: {
             label: 'Transform (Flip)', inPorts: ['in'], outPorts: ['out'],
             params: [
@@ -456,6 +464,18 @@
                 { id: 'median', label: 'Target Val', type: 'range', min: 0, max: 255, default: 127 },
                 { id: 'range', label: 'Pass Width', type: 'range', min: 0, max: 255, default: 50 }
             ] 
+        },
+        hsv_pass: {
+            label: 'HSV Pass', inPorts: ['in'], outPorts: ['out'],
+            params: [
+                { id: 'target', label: 'Target Hue', type: 'range', min: 0, max: 360, default: 0 },
+                { id: 'tol', label: 'Hue Tol', type: 'range', min: 0, max: 180, default: 30 },
+                { id: 's_target', label: 'Target Sat', type: 'range', min: 0, max: 100, default: 50 },
+                { id: 's_tol', label: 'Sat Tol', type: 'range', min: 0, max: 100, default: 50 },
+                { id: 'v_target', label: 'Target Val', type: 'range', min: 0, max: 100, default: 50 },
+                { id: 'v_tol', label: 'Val Tol', type: 'range', min: 0, max: 100, default: 50 },
+                { id: 'mode', label: 'Outside Mode', type: 'select', options: ['transparent', 'mask', 'grayscale', 'black'], default: 'transparent' }
+            ]
         },
         chroma: {
             label: 'Chroma Key', inPorts: ['in'], outPorts: ['out'],
@@ -611,6 +631,8 @@
                             if (lbl) lbl.textContent = mappedVal;
                             const slider = document.getElementById(`slider-${node.id}-${paramId}`);
                             if (slider) slider.value = mappedVal;
+                            
+                            if (node.type === 'hsv_pass') updateSwatch(node.id);
                         }
                     }
                 });
@@ -865,8 +887,13 @@
 
             for (let i = 0; i < len; i += 4) {
                 let r1=bgData[i], g1=bgData[i+1], b1=bgData[i+2];
-                let r2=fgData[i], g2=fgData[i+1], b2=fgData[i+2];
+                let r2=fgData[i], g2=fgData[i+1], b2=fgData[i+2], a2=fgData[i+3];
                 
+                if (a2 === 0) {
+                    out[i] = r1; out[i+1] = g1; out[i+2] = b1; out[i+3] = 255;
+                    continue;
+                }
+
                 let r, g, b;
                 if (mode === 'add') {
                     r = Math.min(255, r1 + r2); g = Math.min(255, g1 + g2); b = Math.min(255, b1 + b2);
@@ -930,6 +957,7 @@
         if (type === 'grayscale') {
             const amt = parseFloat(params.amount||100)/100;
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 let r=data[i], g=data[i+1], b=data[i+2];
                 let gray = 0.299*r + 0.587*g + 0.114*b;
                 data[i] = r + (gray-r)*amt; data[i+1] = g + (gray-g)*amt; data[i+2] = b + (gray-b)*amt;
@@ -938,6 +966,7 @@
         else if (type === 'invert') {
             const amt = parseFloat(params.amount||100)/100;
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 data[i] += (255 - 2*data[i])*amt;
                 data[i+1] += (255 - 2*data[i+1])*amt;
                 data[i+2] += (255 - 2*data[i+2])*amt;
@@ -948,6 +977,7 @@
             const gF = parseFloat(params.g!==undefined?params.g:255)/255;
             const bF = parseFloat(params.b!==undefined?params.b:255)/255;
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 data[i]=data[i]*rF; data[i+1]=data[i+1]*gF; data[i+2]=data[i+2]*bF;
             }
         } 
@@ -956,9 +986,100 @@
             const contrast = parseFloat(params.contrast||0);
             const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 data[i] = factor * (data[i] - 128) + 128 + bright;
                 data[i+1] = factor * (data[i+1] - 128) + 128 + bright;
                 data[i+2] = factor * (data[i+2] - 128) + 128 + bright;
+            }
+        }
+        else if (type === 'hsv_adjust' || type === 'hsv_pass') {
+            const isAdjust = type === 'hsv_adjust';
+            const hShift = isAdjust ? parseFloat(params.h || 0) / 360 : 0;
+            const sScale = isAdjust ? parseFloat(params.s !== undefined ? params.s : 100) / 100 : 1;
+            const vScale = isAdjust ? parseFloat(params.v !== undefined ? params.v : 100) / 100 : 1;
+
+            const targetHue = !isAdjust ? parseFloat(params.target || 0) / 360 : 0;
+            const tolHue = !isAdjust ? parseFloat(params.tol || 30) / 360 : 0;
+            const targetSat = !isAdjust ? parseFloat(params.s_target !== undefined ? params.s_target : 50) / 100 : 0;
+            const tolSat = !isAdjust ? parseFloat(params.s_tol !== undefined ? params.s_tol : 50) / 100 : 0;
+            const targetVal = !isAdjust ? parseFloat(params.v_target !== undefined ? params.v_target : 50) / 100 : 0;
+            const tolVal = !isAdjust ? parseFloat(params.v_tol !== undefined ? params.v_tol : 50) / 100 : 0;
+            const mode = !isAdjust ? params.mode || 'transparent' : '';
+
+            for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
+
+                let r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255;
+                let max = Math.max(r, g, b), min = Math.min(r, g, b);
+                let h, s, v = max;
+                let d = max - min;
+                s = max === 0 ? 0 : d / max;
+
+                if (max === min) {
+                    h = 0;
+                } else {
+                    switch (max) {
+                        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                        case g: h = (b - r) / d + 2; break;
+                        case b: h = (r - g) / d + 4; break;
+                    }
+                    h /= 6;
+                }
+
+                let isOutside = false;
+
+                if (isAdjust) {
+                    h = (h + hShift) % 1.0;
+                    if (h < 0) h += 1.0;
+                    s = Math.max(0, Math.min(1, s * sScale));
+                    v = Math.max(0, Math.min(1, v * vScale));
+                } else {
+                    let hDist = Math.abs(h - targetHue);
+                    if (hDist > 0.5) hDist = 1.0 - hDist;
+                    
+                    let sDist = Math.abs(s - targetSat);
+                    let vDist = Math.abs(v - targetVal);
+
+                    if (hDist > tolHue || sDist > tolSat || vDist > tolVal) {
+                        isOutside = true;
+                        if (mode === 'black') { v = 0; } 
+                        else if (mode === 'grayscale') { s = 0; }
+                    }
+                }
+
+                let newR, newG, newB;
+                if (s === 0) {
+                    newR = newG = newB = v;
+                } else {
+                    let i_h = Math.floor(h * 6);
+                    let f = h * 6 - i_h;
+                    let p = v * (1 - s);
+                    let q = v * (1 - f * s);
+                    let t = v * (1 - (1 - f) * s);
+                    switch (i_h % 6) {
+                        case 0: newR = v, newG = t, newB = p; break;
+                        case 1: newR = q, newG = v, newB = p; break;
+                        case 2: newR = p, newG = v, newB = t; break;
+                        case 3: newR = p, newG = q, newB = v; break;
+                        case 4: newR = t, newG = p, newB = v; break;
+                        case 5: newR = v, newG = p, newB = q; break;
+                    }
+                }
+                
+                if (!isAdjust && mode === 'mask') {
+                    let maskVal = isOutside ? 0 : 255;
+                    data[i] = maskVal;
+                    data[i+1] = maskVal;
+                    data[i+2] = maskVal;
+                    data[i+3] = 255;
+                } else {
+                    data[i] = newR * 255;
+                    data[i+1] = newG * 255;
+                    data[i+2] = newB * 255;
+                    if (!isAdjust && isOutside && mode === 'transparent') {
+                        data[i+3] = 0; 
+                    }
+                }
             }
         }
         else if (type === 'bandpass') {
@@ -966,6 +1087,7 @@
             const targetChannel = params.channel || 'luma';
             
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 let val;
                 if (targetChannel === 'red') val = data[i];
                 else if (targetChannel === 'green') val = data[i+1];
@@ -981,6 +1103,7 @@
             const kr = params.r || 0, kg = params.g || 255, kb = params.b || 0;
             const tol = params.tol || 80;
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 let dist = Math.sqrt(Math.pow(data[i]-kr,2) + Math.pow(data[i+1]-kg,2) + Math.pow(data[i+2]-kb,2));
                 if (dist < tol) {
                     data[i+3] = 0; 
@@ -990,6 +1113,7 @@
         else if (type === 'mask') {
             const inv = params.invert === 'true';
             for (let i=0; i<len; i+=4) {
+                if (data[i+3] === 0) continue;
                 let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
                 data[i+3] = inv ? (255 - gray) : gray; 
             }
@@ -1079,6 +1203,34 @@
             pendingPort = null;
         }
     }
+    
+    // Renders the live HSV color swatch inside the HSV Pass node
+    window.updateSwatch = function(nodeId) {
+        const swatch = document.getElementById(`swatch-${nodeId}`);
+        if (!swatch) return;
+        const node = nodes[nodeId];
+        if (!node) return;
+        const params = node.params;
+        const h = parseFloat(params.target || 0);
+        const s = parseFloat(params.s_target !== undefined ? params.s_target : 50) / 100;
+        const v = parseFloat(params.v_target !== undefined ? params.v_target : 50) / 100;
+
+        let r, g, b;
+        let i = Math.floor(h / 60);
+        let f = h / 60 - i;
+        let p = v * (1 - s);
+        let q = v * (1 - f * s);
+        let t = v * (1 - (1 - f) * s);
+        switch (i % 6) {
+            case 0: r = v, g = t, b = p; break;
+            case 1: r = q, g = v, b = p; break;
+            case 2: r = p, g = v, b = t; break;
+            case 3: r = p, g = q, b = v; break;
+            case 4: r = t, g = p, b = v; break;
+            case 5: r = v, g = p, b = q; break;
+        }
+        swatch.style.background = `rgb(${Math.round(r*255)}, ${Math.round(g*255)}, ${Math.round(b*255)})`;
+    };
 
     function createNode(type, x, y, restoredId = null, restoredParams = null, restoredBindings = null) {
         const def = NODE_DEFS[type];
@@ -1147,6 +1299,13 @@
                 }
             });
         }
+        
+        if (type === 'hsv_pass') {
+            bodyHtml += `<div class="param-group" style="margin-top: 8px;">
+                <div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color Reference</div>
+                <div id="swatch-${id}" style="height: 20px; width: 100%; border-radius: 4px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);"></div>
+            </div>`;
+        }
 
         const canDelete = !def.maxOne;
 
@@ -1163,6 +1322,8 @@
 
         nodesContainer.appendChild(el);
         nodes[id] = { id, type, params, bindings, domElement: el };
+        
+        if (type === 'hsv_pass') updateSwatch(id);
         
         const header = el.querySelector('.node-header');
         header.addEventListener('pointerdown', (e) => {
@@ -1237,6 +1398,7 @@
             nodes[nodeId].params[paramId] = val;
             const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`);
             if (lbl) lbl.textContent = val;
+            if (nodes[nodeId].type === 'hsv_pass') updateSwatch(nodeId);
         }
     };
 
