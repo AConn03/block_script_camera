@@ -727,7 +727,6 @@
         ctx.clearRect(0,0,w,h);
 
         // --- Hardware-Accelerated (GPU) Processing ---
-        
         if (type === 'fps') {
             const inCanvas = inputs['in'];
             if (!inCanvas) return;
@@ -747,7 +746,6 @@
             const reqFrames = parseInt(params.frames || 15);
             if (!node.buffer) node.buffer = [];
             
-            // Re-use hidden canvases instead of huge Uint8 arrays -> 100x faster
             while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));
             if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
             
@@ -781,10 +779,9 @@
             if(node.frameCount < reqFrames) node.frameCount++;
             const activeFrames = Math.min(node.frameCount, reqFrames);
 
-            // Utilizing Hardware Blending modes
             if (mode === 'average') {
                 ctx.globalAlpha = 1.0 / activeFrames;
-                ctx.globalCompositeOperation = 'source-over'; // Visual Approximation for performance
+                ctx.globalCompositeOperation = 'source-over'; 
             } else if (mode === 'lighten') {
                 ctx.globalCompositeOperation = 'lighten';
             } else if (mode === 'darken') {
@@ -815,7 +812,7 @@
             else if (mode === 'multiply') ctx.globalCompositeOperation = 'multiply';
             else if (mode === 'screen') ctx.globalCompositeOperation = 'screen';
             else if (mode === 'difference') ctx.globalCompositeOperation = 'difference';
-            else ctx.globalCompositeOperation = 'source-over'; // Mix
+            else ctx.globalCompositeOperation = 'source-over'; 
             
             ctx.drawImage(fgC, 0, 0);
             ctx.globalAlpha = 1.0;
@@ -864,167 +861,211 @@
         const inCanvas = inputs['in'];
         if (!inCanvas) return;
 
-        // --- Filter Accelerated Processing ---
-        if (type === 'grayscale') {
-            const amt = parseFloat(params.amount||100)/100;
-            ctx.filter = `grayscale(${amt})`; ctx.drawImage(inCanvas, 0, 0); ctx.filter = 'none'; return;
-        } 
-        if (type === 'invert') {
-            const amt = parseFloat(params.amount||100)/100;
-            ctx.filter = `invert(${amt})`; ctx.drawImage(inCanvas, 0, 0); ctx.filter = 'none'; return;
-        }
-        if (type === 'brightness') {
-            const amt = 1.0 + (parseFloat(params.amount||0) / 100);
-            ctx.filter = `brightness(${amt})`; ctx.drawImage(inCanvas, 0, 0); ctx.filter = 'none'; return;
-        }
-        if (type === 'contrast') {
-            const amt = 1.0 + (parseFloat(params.amount||0) / 100);
-            ctx.filter = `contrast(${amt})`; ctx.drawImage(inCanvas, 0, 0); ctx.filter = 'none'; return;
-        }
-        if (type === 'hue_shift') {
-            const deg = parseFloat(params.deg || 0);
-            ctx.filter = `hue-rotate(${deg}deg)`; ctx.drawImage(inCanvas, 0, 0); ctx.filter = 'none'; return;
-        }
-        if (type === 'saturation') {
-            const amt = parseFloat(params.amount || 100) / 100;
-            ctx.filter = `saturate(${amt})`; ctx.drawImage(inCanvas, 0, 0); ctx.filter = 'none'; return;
-        }
+        // --- CPU Bound Pixel Processors (Reliable & Optimized) ---
+        // Guaranteed to run on all browsers regardless of hardware-canvas support
+        const cpuTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'hue_shift', 'saturation', 'tint', 'hsv_pass', 'bandpass', 'chroma', 'mask', 'edge'];
+        
+        if (cpuTypes.includes(type)) {
+            const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
+            const imgData = inCtx.getImageData(0,0,w,h);
+            const data = imgData.data; 
+            const len = data.length;
 
-        // --- CPU Bound Pixel Processors (Heavy Operations) ---
-        const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
-        const imgData = inCtx.getImageData(0,0,w,h);
-        const data = imgData.data; 
-        const len = data.length;
-
-        if (type === 'tint') {
-            const rF = parseFloat(params.r!==undefined?params.r:255)/255;
-            const gF = parseFloat(params.g!==undefined?params.g:255)/255;
-            const bF = parseFloat(params.b!==undefined?params.b:255)/255;
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                data[i]*=rF; data[i+1]*=gF; data[i+2]*=bF;
-            }
-        } 
-        else if (type === 'hsv_pass') {
-            const targetHue = parseFloat(params.target || 0) / 360;
-            const tolHue = parseFloat(params.tol || 30) / 360;
-            const targetSat = parseFloat(params.s_target !== undefined ? params.s_target : 50) / 100;
-            const tolSat = parseFloat(params.s_tol !== undefined ? params.s_tol : 50) / 100;
-            const targetVal = parseFloat(params.v_target !== undefined ? params.v_target : 50) / 100;
-            const tolVal = parseFloat(params.v_tol !== undefined ? params.v_tol : 50) / 100;
-            const mode = params.mode || 'transparent';
-
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                let r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255;
-                let max = Math.max(r, g, b), min = Math.min(r, g, b);
-                let h, s, v = max, d = max - min;
-                s = max === 0 ? 0 : d / max;
-
-                if (max === min) h = 0;
-                else {
-                    switch (max) {
-                        case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                        case g: h = (b - r) / d + 2; break;
-                        case b: h = (r - g) / d + 4; break;
-                    }
-                    h /= 6;
+            if (type === 'grayscale') {
+                const amt = parseFloat(params.amount||100)/100;
+                const invAmt = 1 - amt;
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    let r=data[i], g=data[i+1], b=data[i+2];
+                    let gray = 0.299*r + 0.587*g + 0.114*b;
+                    data[i] = gray * amt + r * invAmt;
+                    data[i+1] = gray * amt + g * invAmt;
+                    data[i+2] = gray * amt + b * invAmt;
                 }
+            } 
+            else if (type === 'invert') {
+                const amt = parseFloat(params.amount||100)/100;
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    data[i] += (255 - 2*data[i])*amt;
+                    data[i+1] += (255 - 2*data[i+1])*amt;
+                    data[i+2] += (255 - 2*data[i+2])*amt;
+                }
+            }
+            else if (type === 'brightness') {
+                const amt = parseFloat(params.amount||0) * 2.55; 
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    data[i] += amt; data[i+1] += amt; data[i+2] += amt;
+                }
+            }
+            else if (type === 'contrast') {
+                const amt = parseFloat(params.amount||0);
+                const factor = (259 * (amt + 255)) / (255 * (259 - amt));
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    data[i] = factor * (data[i] - 128) + 128;
+                    data[i+1] = factor * (data[i+1] - 128) + 128;
+                    data[i+2] = factor * (data[i+2] - 128) + 128;
+                }
+            }
+            else if (type === 'hue_shift' || type === 'saturation') {
+                let hShift = 0, sScale = 1;
+                if (type === 'hue_shift') hShift = parseFloat(params.deg || 0);
+                if (type === 'saturation') sScale = parseFloat(params.amount || 100) / 100;
 
-                let isOutside = false;
-                let hDist = Math.abs(h - targetHue);
-                if (hDist > 0.5) hDist = 1.0 - hDist;
+                const angle = hShift * Math.PI / 180;
+                const c = Math.cos(angle), s = Math.sin(angle);
+                const lumR = 0.213, lumG = 0.715, lumB = 0.072;
                 
-                if (hDist > tolHue || Math.abs(s - targetSat) > tolSat || Math.abs(v - targetVal) > tolVal) {
-                    isOutside = true;
-                    if (mode === 'black') v = 0; else if (mode === 'grayscale') s = 0;
-                }
+                const m0 = (lumR + (1 - lumR) * c - lumR * s) * sScale + lumR * (1 - sScale);
+                const m1 = (lumG - lumG * c - lumG * s) * sScale + lumG * (1 - sScale);
+                const m2 = (lumB - lumB * c + (1 - lumB) * s) * sScale + lumB * (1 - sScale);
+                const m3 = (lumR - lumR * c + 0.143 * s) * sScale + lumR * (1 - sScale);
+                const m4 = (lumG + (1 - lumG) * c + 0.140 * s) * sScale + lumG * (1 - sScale);
+                const m5 = (lumB - lumB * c - 0.283 * s) * sScale + lumB * (1 - sScale);
+                const m6 = (lumR - lumR * c - (1 - lumR) * s) * sScale + lumR * (1 - sScale);
+                const m7 = (lumG - lumG * c + lumG * s) * sScale + lumG * (1 - sScale);
+                const m8 = (lumB + (1 - lumB) * c + lumB * s) * sScale + lumB * (1 - sScale);
 
-                let newR, newG, newB;
-                if (s === 0) newR = newG = newB = v;
-                else {
-                    let i_h = Math.floor(h * 6), f = h * 6 - i_h;
-                    let p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
-                    switch (i_h % 6) {
-                        case 0: newR = v, newG = t, newB = p; break;
-                        case 1: newR = q, newG = v, newB = p; break;
-                        case 2: newR = p, newG = v, newB = t; break;
-                        case 3: newR = p, newG = q, newB = v; break;
-                        case 4: newR = t, newG = p, newB = v; break;
-                        case 5: newR = v, newG = p, newB = q; break;
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    let r = data[i], g = data[i+1], b = data[i+2];
+                    data[i]   = r * m0 + g * m1 + b * m2;
+                    data[i+1] = r * m3 + g * m4 + b * m5;
+                    data[i+2] = r * m6 + g * m7 + b * m8;
+                }
+            }
+            else if (type === 'tint') {
+                const rF = parseFloat(params.r!==undefined?params.r:255)/255;
+                const gF = parseFloat(params.g!==undefined?params.g:255)/255;
+                const bF = parseFloat(params.b!==undefined?params.b:255)/255;
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    data[i]*=rF; data[i+1]*=gF; data[i+2]*=bF;
+                }
+            } 
+            else if (type === 'hsv_pass') {
+                const targetHue = parseFloat(params.target || 0) / 360;
+                const tolHue = parseFloat(params.tol || 30) / 360;
+                const targetSat = parseFloat(params.s_target !== undefined ? params.s_target : 50) / 100;
+                const tolSat = parseFloat(params.s_tol !== undefined ? params.s_tol : 50) / 100;
+                const targetVal = parseFloat(params.v_target !== undefined ? params.v_target : 50) / 100;
+                const tolVal = parseFloat(params.v_tol !== undefined ? params.v_tol : 50) / 100;
+                const mode = params.mode || 'transparent';
+
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    let r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255;
+                    let max = Math.max(r, g, b), min = Math.min(r, g, b);
+                    let h, s, v = max, d = max - min;
+                    s = max === 0 ? 0 : d / max;
+
+                    if (max === min) h = 0;
+                    else {
+                        switch (max) {
+                            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
+                            case g: h = (b - r) / d + 2; break;
+                            case b: h = (r - g) / d + 4; break;
+                        }
+                        h /= 6;
+                    }
+
+                    let isOutside = false;
+                    let hDist = Math.abs(h - targetHue);
+                    if (hDist > 0.5) hDist = 1.0 - hDist;
+                    
+                    if (hDist > tolHue || Math.abs(s - targetSat) > tolSat || Math.abs(v - targetVal) > tolVal) {
+                        isOutside = true;
+                        if (mode === 'black') v = 0; else if (mode === 'grayscale') s = 0;
+                    }
+
+                    let newR, newG, newB;
+                    if (s === 0) newR = newG = newB = v;
+                    else {
+                        let i_h = Math.floor(h * 6), f = h * 6 - i_h;
+                        let p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+                        switch (i_h % 6) {
+                            case 0: newR = v, newG = t, newB = p; break;
+                            case 1: newR = q, newG = v, newB = p; break;
+                            case 2: newR = p, newG = v, newB = t; break;
+                            case 3: newR = p, newG = q, newB = v; break;
+                            case 4: newR = t, newG = p, newB = v; break;
+                            case 5: newR = v, newG = p, newB = q; break;
+                        }
+                    }
+                    
+                    if (mode === 'mask') {
+                        let maskVal = isOutside ? 0 : 255;
+                        data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255;
+                    } else {
+                        data[i] = newR * 255; data[i+1] = newG * 255; data[i+2] = newB * 255;
+                        if (isOutside && mode === 'transparent') data[i+3] = 0; 
                     }
                 }
+            }
+            else if (type === 'bandpass') {
+                const med = parseInt(params.median||127), rh = parseInt(params.range||50)/2;
+                const targetChannel = params.channel || 'luma';
                 
-                if (mode === 'mask') {
-                    let maskVal = isOutside ? 0 : 255;
-                    data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255;
-                } else {
-                    data[i] = newR * 255; data[i+1] = newG * 255; data[i+2] = newB * 255;
-                    if (isOutside && mode === 'transparent') data[i+3] = 0; 
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    let val;
+                    if (targetChannel === 'red') val = data[i];
+                    else if (targetChannel === 'green') val = data[i+1];
+                    else if (targetChannel === 'blue') val = data[i+2];
+                    else val = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; 
+
+                    if (Math.abs(val - med) > rh) { data[i] = data[i+1] = data[i+2] = 0; }
+                }
+            } 
+            else if (type === 'chroma') {
+                const kr = params.r || 0, kg = params.g || 255, kb = params.b || 0;
+                const tol = params.tol || 80;
+                const tolSq = tol * tol; 
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    const dr = data[i]-kr, dg = data[i+1]-kg, db = data[i+2]-kb;
+                    if (dr*dr + dg*dg + db*db < tolSq) data[i+3] = 0; 
                 }
             }
-        }
-        else if (type === 'bandpass') {
-            const med = parseInt(params.median||127), rh = parseInt(params.range||50)/2;
-            const targetChannel = params.channel || 'luma';
-            
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                let val;
-                if (targetChannel === 'red') val = data[i];
-                else if (targetChannel === 'green') val = data[i+1];
-                else if (targetChannel === 'blue') val = data[i+2];
-                else val = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; 
-
-                if (Math.abs(val - med) > rh) { data[i] = data[i+1] = data[i+2] = 0; }
-            }
-        } 
-        else if (type === 'chroma') {
-            const kr = params.r || 0, kg = params.g || 255, kb = params.b || 0;
-            const tol = params.tol || 80;
-            const tolSq = tol * tol; // Optimized check
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                const dr = data[i]-kr, dg = data[i+1]-kg, db = data[i+2]-kb;
-                if (dr*dr + dg*dg + db*db < tolSq) data[i+3] = 0; 
-            }
-        }
-        else if (type === 'mask') {
-            const inv = params.invert === 'true';
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-                data[i+3] = inv ? (255 - gray) : gray; 
-            }
-        }
-        else if (type === 'edge') {
-            const intensity = parseInt(params.intensity || 50);
-            const mode = params.mode || 'grayscale';
-            if(!node.grayBuffer || node.grayBuffer.length !== w * h) node.grayBuffer = new Uint8Array(w * h);
-            const gray = node.grayBuffer;
-            
-            for(let i=0, j=0; i<len; i+=4, j++) {
-                gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-            }
-            
-            for (let y = 0; y < h; y++) {
-                for (let x = 0; x < w; x++) {
-                    const idx = y * w + x;
-                    const c = gray[idx];
-                    const right = x < w - 1 ? gray[idx + 1] : c;
-                    const bottom = y < h - 1 ? gray[idx + w] : c;
-                    
-                    const diff = Math.abs(c - right) + Math.abs(c - bottom);
-                    const val = mode === 'binary' ? (diff > intensity ? 255 : 0) : Math.min(255, diff * (intensity / 10));
-                    
-                    const outIdx = idx * 4;
-                    data[outIdx] = data[outIdx+1] = data[outIdx+2] = val;
-                    data[outIdx+3] = 255;
+            else if (type === 'mask') {
+                const inv = params.invert === 'true';
+                for (let i=0; i<len; i+=4) {
+                    if (data[i+3] === 0) continue;
+                    let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+                    data[i+3] = inv ? (255 - gray) : gray; 
                 }
             }
-        }
+            else if (type === 'edge') {
+                const intensity = parseInt(params.intensity || 50);
+                const mode = params.mode || 'grayscale';
+                if(!node.grayBuffer || node.grayBuffer.length !== w * h) node.grayBuffer = new Uint8Array(w * h);
+                const gray = node.grayBuffer;
+                
+                for(let i=0, j=0; i<len; i+=4, j++) {
+                    gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+                }
+                
+                for (let y = 0; y < h; y++) {
+                    for (let x = 0; x < w; x++) {
+                        const idx = y * w + x;
+                        const c = gray[idx];
+                        const right = x < w - 1 ? gray[idx + 1] : c;
+                        const bottom = y < h - 1 ? gray[idx + w] : c;
+                        
+                        const diff = Math.abs(c - right) + Math.abs(c - bottom);
+                        const val = mode === 'binary' ? (diff > intensity ? 255 : 0) : Math.min(255, diff * (intensity / 10));
+                        
+                        const outIdx = idx * 4;
+                        data[outIdx] = data[outIdx+1] = data[outIdx+2] = val;
+                        data[outIdx+3] = 255;
+                    }
+                }
+            }
 
-        ctx.putImageData(imgData, 0, 0);
+            ctx.putImageData(imgData, 0, 0);
+        }
     }
 
     function renderFinalOutput(sourceCanvas) {
