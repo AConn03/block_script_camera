@@ -159,7 +159,8 @@
         .palette-block {
             padding: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.15);
             cursor: grab; font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            transition: background 0.2s; touch-action: none;
+            transition: background 0.2s; 
+            touch-action: pan-y; /* Allowing native vertical scrolling */
         }
         .palette-block:active { cursor: grabbing; }
         .palette-block:hover { background: rgba(255, 255, 255, 0.25); }
@@ -431,6 +432,8 @@
     // --- Dynamic User Variables Data ---
     window.userVarNames = [];
     window.userVars = {};
+    window.isCameraPaused = false; // State for pause/resume feature
+
     function getSafeVarName(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
 
     // --- Config & Node Definitions ---
@@ -522,10 +525,6 @@
             label: 'Pixelate', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'],
             params: [{ id: 'size', label: 'Block Size', type: 'range', min:1, max:100, default:10 }]
         },
-        delay: { 
-            label: 'Delay', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'frames', label: 'Delay Frames', type: 'range', min: 1, max: 60, default: 15 }] 
-        },
         accumulate: { 
             label: 'Long Exposure', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
             params: [
@@ -554,11 +553,23 @@
                 {id: 'h', label: 'Height (px)', type: 'number', default: 40}
             ] 
         },
+        delay: { 
+            label: 'Delay', category: 'Triggers', inPorts: ['in'], outPorts: ['out'], 
+            params: [{ id: 'frames', label: 'Delay Frames', type: 'range', min: 1, max: 60, default: 15 }] 
+        },
+        cam_pause: { label: 'Pause Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
+        cam_resume: { label: 'Resume Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
         
         math_add: { label: 'Add', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_sub: { label: 'Subtract', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_mult: { label: 'Multiply', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_div: { label: 'Divide', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:1}] },
+        
+        math_sin: { label: 'Sin', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
+        math_cos: { label: 'Cos', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
+        math_tan: { label: 'Tan', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
+        math_pi: { label: 'Pi', category: 'Math', inPorts: [], outPorts: ['out'] },
+        math_log: { label: 'Log', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:1}] },
 
         time_sec: { label: 'Time (sec)', category: 'Math', inPorts: [], outPorts: ['val'] },
         time_date: { label: 'Date (day)', category: 'Math', inPorts: [], outPorts: ['val'] },
@@ -581,6 +592,7 @@
     let selectedWire = null; 
     let pendingPort = null;
     let dragStartPos = null;
+    let paletteDragItem = null;
 
     let isPanning = false;
     let panStartX = 0, panStartY = 0;
@@ -710,7 +722,8 @@
 
         Object.values(nodes).forEach(node => {
             if (!node.outputData) node.outputData = {};
-            if (NODE_DEFS[node.type].category === 'Image Processing' || node.type === 'camera') {
+            // Make sure delay gets a canvas initialized even if it is in the Triggers tab
+            if (NODE_DEFS[node.type].category === 'Image Processing' || node.type === 'camera' || node.type === 'delay') {
                 if (!node.canvas || node.canvas.width !== videoWidth) {
                     node.canvas = createInternalCanvas(videoWidth, videoHeight);
                     node.ctx = node.canvas.getContext('2d', { willReadFrequently: true });
@@ -754,7 +767,7 @@
     function applyNodeEffect(node, inputs) {
         const { type, params, ctx, canvas } = node;
         const w = canvas ? canvas.width : 0, h = canvas ? canvas.height : 0;
-        if (ctx) ctx.clearRect(0,0,w,h);
+        if (ctx && !window.isCameraPaused) ctx.clearRect(0,0,w,h);
 
         // Core logic mapper: Wires > Pills > Sliders/Inputs
         const getVal = (id, defVal) => {
@@ -783,7 +796,10 @@
         // --- Hardware / Basic I/O ---
         if (type === 'camera') {
             if (stream) {
-                ctx.drawImage(singleVideo, 0, 0, w, h);
+                // If paused, we skip writing the singleVideo feed to the context, leaving the frozen image
+                if (!window.isCameraPaused) {
+                    ctx.drawImage(singleVideo, 0, 0, w, h);
+                }
             } else {
                 ctx.fillStyle = '#111';
                 ctx.fillRect(0, 0, w, h);
@@ -807,8 +823,30 @@
         if (type === 'math_mult') { node.outputData['out'] = getP('a',0) * getP('b',0); return; }
         if (type === 'math_div') { let b = getP('b',1); node.outputData['out'] = b !== 0 ? getP('a',0) / b : 0; return; }
         
-        if (type === 'time_sec') { node.outputData['val'] = Date.now() / 1000; return; }
+        if (type === 'math_sin') { node.outputData['out'] = Math.sin(getP('a',0)); return; }
+        if (type === 'math_cos') { node.outputData['out'] = Math.cos(getP('a',0)); return; }
+        if (type === 'math_tan') { node.outputData['out'] = Math.tan(getP('a',0)); return; }
+        if (type === 'math_pi') { node.outputData['out'] = Math.PI; return; }
+        if (type === 'math_log') { node.outputData['out'] = Math.log(getP('a',1)); return; }
+
+        if (type === 'time_sec') { 
+            const now = new Date();
+            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            node.outputData['val'] = (now - startOfDay) / 1000; 
+            return; 
+        }
         if (type === 'time_date') { node.outputData['val'] = new Date().getDate(); return; }
+        
+        if (type === 'cam_pause') {
+            if (inputs['exec']) window.isCameraPaused = true;
+            node.outputData['exec'] = inputs['exec'];
+            return;
+        }
+        if (type === 'cam_resume') {
+            if (inputs['exec']) window.isCameraPaused = false;
+            node.outputData['exec'] = inputs['exec'];
+            return;
+        }
 
         if (type === 'var_set') {
             if (inputs['exec']) {
@@ -1589,6 +1627,21 @@
     window.addEventListener('pointermove', (e) => {
         if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, e);
 
+        // Smart Drag / Swipe threshold for the node palette
+        if (paletteDragItem) {
+            const dx = Math.abs(e.clientX - paletteDragItem.startX);
+            const dy = Math.abs(e.clientY - paletteDragItem.startY);
+            
+            if (dy > 10 && dx < dy) {
+                // Vertical scrolling intent - cancel our drag listener
+                paletteDragItem = null;
+            } else if (dx > 10) {
+                // Definite drag intention
+                startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params);
+                paletteDragItem = null;
+            }
+        }
+
         if (activePointers.size === 2) {
             const pts = Array.from(activePointers.values());
             const dist = Math.sqrt(Math.pow(pts[0].clientX - pts[1].clientX, 2) + Math.pow(pts[0].clientY - pts[1].clientY, 2));
@@ -1619,6 +1672,18 @@
 
     window.addEventListener('pointerup', (e) => {
         activePointers.delete(e.pointerId); if (activePointers.size < 2) lastPinchDist = null;
+
+        // If a user just tapped the palette without scrolling or dragging out of bounds
+        if (paletteDragItem) {
+            startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params);
+            if (draggedNode && nodes[draggedNode]) {
+                nodes[draggedNode].domElement.style.zIndex = 2; 
+                nodes[draggedNode].domElement.classList.remove('drag-active');
+                draggedNode = null;
+            }
+            if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); workspaceViewport.releasePointerCapture(e.pointerId); }
+            paletteDragItem = null;
+        }
 
         if (draggingWire) {
             const activeWire = wiresSvg.querySelector('.wire.active');
@@ -1674,6 +1739,12 @@
         if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); workspaceViewport.releasePointerCapture(e.pointerId); }
     });
 
+    window.addEventListener('pointercancel', (e) => {
+        paletteDragItem = null;
+        activePointers.delete(e.pointerId); 
+        if (activePointers.size < 2) lastPinchDist = null;
+    });
+
     // --- Init & Save/Load ---
 
     function renderPalette(category) {
@@ -1691,7 +1762,7 @@
             pal.appendChild(createBtn);
             
             const setB = document.createElement('div'); setB.className = 'palette-block special'; setB.innerHTML = `<span>Set Variable</span><span>+</span>`;
-            setB.onpointerdown = (e) => startDragFromPalette(e, 'var_set');
+            setB.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: 'var_set', params: null, startX: e.clientX, startY: e.clientY }; });
             pal.appendChild(setB);
 
             window.userVarNames.forEach(varName => {
@@ -1700,7 +1771,7 @@
                 b.innerHTML = `<div style="display:flex; justify-content:space-between; width:100%;">
                     <span>${varName}</span> <span class="live-val-${safeName}" style="color:#3b82f6; font-family:monospace;">0</span>
                 </div>`;
-                b.onpointerdown = (e) => startDragFromPalette(e, 'var_get', {varName: varName});
+                b.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: 'var_get', params: {varName: varName}, startX: e.clientX, startY: e.clientY }; });
                 pal.appendChild(b);
             });
             return;
@@ -1710,12 +1781,12 @@
             if (NODE_DEFS[k].category !== category || NODE_DEFS[k].hideInPalette) return;
             
             const b = document.createElement('div'); b.className = 'palette-block'; b.innerHTML = `<span>${NODE_DEFS[k].label}</span><span>+</span>`;
-            b.onpointerdown = (e) => startDragFromPalette(e, k);
+            b.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: k, params: null, startX: e.clientX, startY: e.clientY }; });
             pal.appendChild(b);
         });
     }
 
-    function startDragFromPalette(e, type, params = null) {
+    function startDragFromPaletteActual(e, type, params = null) {
         if (isMobile()) closeAllPanels();
         const wsRect = workspaceInner.getBoundingClientRect();
         const x = (e.clientX - wsRect.left) / currentZoom;
@@ -1730,8 +1801,6 @@
             activePointers.set(e.pointerId, e);
             workspaceViewport.setPointerCapture(e.pointerId);
         }
-        e.preventDefault();
-        e.stopPropagation();
     }
 
     document.getElementById('cancel-var').onclick = () => document.getElementById('var-modal').classList.remove('active');
