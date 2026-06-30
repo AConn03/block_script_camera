@@ -6,318 +6,117 @@
     <title>Block Script Camera</title>
     
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background-color: #000; overflow: hidden; height: 100vh; display: flex; flex-direction: column; font-family: Arial, sans-serif; user-select: none; color: white; -webkit-user-select: none; }
 
-        body {
-            background-color: #000;
-            overflow: hidden;
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            font-family: Arial, sans-serif;
-            user-select: none;
-            color: white;
-            -webkit-user-select: none;
-        }
-
-        /* --- Top Navigation --- */
-        #top-nav {
-            display: flex;
-            justify-content: center;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px;
-            gap: 15px;
-            z-index: 50;
-        }
-
-        .nav-btn {
-            padding: 10px 20px;
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-            font-size: 16px;
-            backdrop-filter: blur(5px);
-            transition: background 0.2s;
-        }
-
-        .nav-btn:hover { background: rgba(255, 255, 255, 0.3); }
+        /* --- Navigation & Panels --- */
+        #top-nav { display: flex; justify-content: center; background: rgba(0, 0, 0, 0.8); padding: 15px; gap: 15px; z-index: 50; }
+        .nav-btn, button { padding: 10px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; backdrop-filter: blur(5px); transition: background 0.2s; }
+        .nav-btn:hover, button:hover { background: rgba(255, 255, 255, 0.3); }
         .nav-btn.active { background: rgba(255, 255, 255, 0.4); box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
-
-        /* --- View Containers --- */
-        .view-container {
-            flex: 1;
-            position: relative;
-            display: none;
-            width: 100%;
-            height: calc(100vh - 60px);
-        }
-        .view-container.active { display: flex; }
-
-        /* --- Camera Mode Styles --- */
-        #video-container {
-            display: flex;
-            width: 100%;
-            height: 100%;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .video-wrapper {
-            width: 50%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: transform 0.3s ease;
-            position: relative;
-        }
-
-        .video-feed { width: 100%; height: 100%; object-fit: cover; }
-        #single-video { width: 100%; height: 100%; object-fit: cover; display: none; }
-
-        .canvas-container {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none;
-        }
-        .effect-canvas { width: 100%; height: 100%; }
-
-        /* New overlay for custom UI Buttons */
-        #ui-layer {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; z-index: 5; overflow: hidden;
-        }
-
-        #controls-panel {
-            position: absolute;
-            bottom: 0; left: 0; width: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 15px; z-index: 10;
-            transition: opacity 0.3s ease, transform 0.3s ease;
-            display: flex; flex-direction: column; gap: 10px;
-        }
-
-        #controls-panel.hidden {
-            opacity: 0; pointer-events: none; transform: translateY(20px);
-        }
-
-        .controls-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .info-row { display: flex; justify-content: center; gap: 20px; color: white; font-size: 14px; margin-top: 5px; }
-
-        button {
-            padding: 10px 20px; background: rgba(255, 255, 255, 0.2);
-            color: white; border: none; border-radius: 5px;
-            cursor: pointer; font-size: 16px; backdrop-filter: blur(5px);
-        }
-        button:hover { background: rgba(255, 255, 255, 0.3); }
         button:active { transform: scale(0.98); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-        /* --- Node Builder Mode Styles --- */
-        #builder-layout {
-            display: flex; width: 100%; height: 100%; background: #000; position: relative;
-        }
+        .view-container { flex: 1; position: relative; display: none; width: 100%; height: calc(100vh - 60px); }
+        .view-container.active { display: flex; }
 
-        /* Sidebar Panels */
-        .sidebar {
-            width: 260px; background: rgba(15, 15, 15, 0.95);
-            border-right: 1px solid rgba(255,255,255,0.1);
-            display: flex; flex-direction: column;
-            padding: 15px; gap: 10px; overflow-y: auto;
-            backdrop-filter: blur(15px); flex-shrink: 0; z-index: 20;
-            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        }
+        /* --- Camera Mode --- */
+        #video-container { display: flex; width: 100%; height: 100%; justify-content: center; align-items: center; }
+        .video-wrapper { width: 50%; height: 100%; display: flex; justify-content: center; align-items: center; transition: transform 0.3s; position: relative; }
+        .video-feed, #single-video { width: 100%; height: 100%; object-fit: cover; }
+        #single-video { display: none; }
+        .canvas-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .effect-canvas { width: 100%; height: 100%; }
+
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; overflow: hidden; }
+        #controls-panel { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.8); padding: 15px; z-index: 10; transition: opacity 0.3s, transform 0.3s; display: flex; flex-direction: column; gap: 10px; }
+        #controls-panel.hidden { opacity: 0; pointer-events: none; transform: translateY(20px); }
+        .controls-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+        .info-row { display: flex; justify-content: center; gap: 20px; color: white; font-size: 14px; margin-top: 5px; }
+
+        /* --- Node Builder --- */
+        #builder-layout { display: flex; width: 100%; height: 100%; background: #000; position: relative; }
+        .sidebar { width: 260px; background: rgba(15, 15, 15, 0.95); border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; padding: 15px; gap: 10px; overflow-y: auto; backdrop-filter: blur(15px); flex-shrink: 0; z-index: 20; transition: transform 0.3s; }
         #scripts-panel { border-right: none; border-left: 1px solid rgba(255,255,255,0.1); }
+        .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center; }
 
-        .panel-title {
-            font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center;
-        }
-
-        /* Tabs styling for Palette */
-        .palette-tabs {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-bottom: 5px;
-        }
-        .palette-tab {
-            background: rgba(255,255,255,0.1); color: #ccc;
-            flex: 1; min-width: 45%;
-            border: 1px solid rgba(255,255,255,0.05);
-            padding: 6px; border-radius: 4px; font-size: 11px;
-            cursor: pointer; text-align: center; transition: all 0.2s;
-        }
+        .palette-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
+        .palette-tab { background: rgba(255,255,255,0.1); color: #ccc; flex: 1; min-width: 45%; border: 1px solid rgba(255,255,255,0.05); padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s; }
         .palette-tab:hover { background: rgba(255,255,255,0.2); color: #fff; }
         .palette-tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; font-weight: bold; }
 
-        .palette-block {
-            padding: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.15);
-            cursor: grab; font-size: 14px; display: flex; justify-content: space-between; align-items: center;
-            transition: background 0.2s; 
-            touch-action: pan-y; /* Allowing native vertical scrolling */
-        }
+        .palette-block { padding: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.15); cursor: grab; font-size: 14px; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; touch-action: pan-y; }
         .palette-block:active { cursor: grabbing; }
         .palette-block:hover { background: rgba(255, 255, 255, 0.25); }
-        .palette-block.special { border-left: 3px solid #3b82f6; }
 
-        /* Node Workspace */
-        #workspace-viewport {
-            flex: 1; position: relative; overflow: hidden; background: #000; cursor: grab;
-            touch-action: none; 
-        }
+        #workspace-viewport { flex: 1; position: relative; overflow: hidden; background: #000; cursor: grab; touch-action: none; }
         #workspace-viewport.panning { cursor: grabbing !important; }
+        #workspace-inner { width: 4000px; height: 4000px; position: relative; background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 20px 20px; transform-origin: 0 0; }
 
-        #workspace-inner {
-            width: 4000px; height: 4000px; position: relative;
-            background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px);
-            background-size: 20px 20px;
-            transform-origin: 0 0;
-            transform: scale(1);
-        }
-
-        #builder-preview {
-            position: fixed; bottom: 20px; right: 300px;
-            width: 640px; height: 480px; background: rgba(0, 0, 0, 0.8);
-            border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px;
-            z-index: 10; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8);
-            overflow: hidden;
-        }
+        #builder-preview { position: fixed; bottom: 20px; right: 300px; width: 320px; height: 240px; background: rgba(0, 0, 0, 0.8); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; z-index: 10; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8); overflow: hidden; }
         #preview-canvas { width: 100%; height: 100%; object-fit: contain; }
 
-        #wires-svg {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1;
-        }
-
+        #wires-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
         .wire { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 3; pointer-events: stroke; cursor: pointer; transition: stroke 0.2s; }
         .wire:hover { stroke: rgba(255,255,255,1); }
         .wire.active { stroke: #3b82f6; stroke-dasharray: 5,5; animation: dash 1s linear infinite; }
         @keyframes dash { to { stroke-dashoffset: -10; } }
 
-        .node {
-            position: absolute; background: rgba(20, 20, 20, 0.95);
-            border: 1px solid rgba(255,255,255,0.2); border-radius: 8px;
-            min-width: 220px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8);
-            display: flex; flex-direction: column; cursor: default; user-select: none;
-        }
+        .node { position: absolute; background: rgba(20, 20, 20, 0.95); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; min-width: 220px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8); display: flex; flex-direction: column; cursor: default; }
         .node.error { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
         .node.drag-active { opacity: 0.8; box-shadow: 0 10px 25px rgba(0,0,0,0.9); }
 
-        .node-header {
-            padding: 10px 12px; background: rgba(255,255,255,0.1);
-            border-top-left-radius: 7px; border-top-right-radius: 7px;
-            cursor: grab; display: flex; justify-content: space-between; align-items: center;
-            font-weight: bold; font-size: 14px; touch-action: none;
-        }
+        .node-header { padding: 10px 12px; background: rgba(255,255,255,0.1); border-radius: 7px 7px 0 0; cursor: grab; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 14px; touch-action: none; }
         .node-header:active { cursor: grabbing; }
-
         .node-actions { display: flex; gap: 5px; }
-        .node-btn {
-            background: transparent; color: #aaa; border: none; padding: 2px 6px; min-width: auto;
-            font-size: 12px; cursor: pointer; border-radius: 3px; font-weight: bold;
-        }
+        .node-btn { background: transparent; color: #aaa; border: none; padding: 2px 6px; min-width: auto; font-size: 12px; cursor: pointer; font-weight: bold; }
         .node-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
         .node-btn.delete:hover { background: #ef4444; color: #fff; }
 
         .node-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; font-size: 12px; }
-
         .port-row { display: flex; justify-content: space-between; position: relative; align-items: center; min-height: 20px;}
         .port-label { color: #bbb; font-weight: bold;}
-        
-        .port {
-            width: 16px; height: 16px; background: #fff; border-radius: 50%;
-            position: absolute; top: 50%; transform: translateY(-50%);
-            cursor: crosshair; border: 2px solid #333; z-index: 3;
-            transition: transform 0.1s, background 0.2s, box-shadow 0.2s; touch-action: none;
-        }
+        .port { width: 16px; height: 16px; background: #fff; border-radius: 50%; position: absolute; top: 50%; transform: translateY(-50%); cursor: crosshair; border: 2px solid #333; z-index: 3; transition: transform 0.1s, background 0.2s; touch-action: none; }
         .port:hover { transform: translateY(-50%) scale(1.3); background: #3b82f6;}
-        
-        .port.pending {
-            background: #3b82f6;
-            transform: translateY(-50%) scale(1.4);
-            box-shadow: 0 0 12px #3b82f6;
-        }
+        .port.pending { background: #3b82f6; transform: translateY(-50%) scale(1.4); box-shadow: 0 0 12px #3b82f6; }
+        .port-in { left: -20px; } .port-out { right: -20px; }
 
-        .port-in { left: -20px; }
-        .port-out { right: -20px; }
-
-        .param-group { display: flex; flex-direction: column; gap: 4px; position: relative; border-radius: 4px; transition: background 0.2s; padding: 2px;}
+        .param-group { display: flex; flex-direction: column; gap: 4px; position: relative; border-radius: 4px; padding: 2px; }
         .param-header { display: flex; justify-content: space-between; align-items: center; }
         .param-ui { min-height: 24px; display: flex; flex-direction: column; justify-content: center;}
-        
-        .param-droppable.drag-over {
-            background: rgba(59, 130, 246, 0.3);
-            box-shadow: 0 0 5px #3b82f6;
-        }
+        .param-droppable.drag-over { background: rgba(59, 130, 246, 0.3); box-shadow: 0 0 5px #3b82f6; }
 
-        .var-pill {
-            background: #3b82f6; color: white; border-radius: 12px;
-            padding: 4px 10px; cursor: grab; text-align: center;
-            font-weight: bold; font-size: 13px; display: flex; justify-content: space-between;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.5); user-select: none; touch-action: none;
-        }
+        .var-pill { background: #3b82f6; color: white; border-radius: 12px; padding: 4px 10px; cursor: grab; text-align: center; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.5); touch-action: none; }
         .var-pill:active { cursor: grabbing; }
         .var-pill span { background: rgba(0,0,0,0.3); padding: 0 6px; border-radius: 8px; margin-left: 8px; font-family: monospace;}
 
         input[type="range"], input[type="number"], input[type="text"] { width: 100%; cursor: pointer; }
         input.param-input:disabled { opacity: 0.3; cursor: not-allowed; }
-        
         select.node-select { padding: 6px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px; width: 100%; }
         select.node-select option { background: #333; }
 
-        .script-item {
-            padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; display: flex; justify-content: space-between;
-            align-items: center; cursor: pointer; margin-bottom: 5px;
-        }
+        .script-item { padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 5px; }
         .script-item:hover { background: rgba(255,255,255,0.2); }
 
-        /* --- Mobile Overrides --- */
-        #mobile-bottom-bar { display: none; }
-        #sidebar-overlay { display: none; }
-
+        /* --- Mobile Overrides & Modals --- */
+        #mobile-bottom-bar, #sidebar-overlay { display: none; }
         @media (max-width: 768px) {
-            .sidebar {
-                position: absolute; top: 0; bottom: 0; height: calc(100vh - 60px);
-                box-shadow: 0 0 20px rgba(0,0,0,0.8);
-            }
+            .sidebar { position: absolute; top: 0; bottom: 0; height: calc(100vh - 60px); box-shadow: 0 0 20px rgba(0,0,0,0.8); }
             #palette-panel { left: 0; transform: translateX(-100%); }
             #palette-panel.open { transform: translateX(0); }
-            
             #scripts-panel { right: 0; transform: translateX(100%); }
             #scripts-panel.open { transform: translateX(0); }
-            
-            #sidebar-overlay {
-                display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-                background: rgba(0,0,0,0.6); z-index: 15; opacity: 0; pointer-events: none; transition: opacity 0.3s;
-            }
+            #sidebar-overlay { display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 15; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
             #sidebar-overlay.active { opacity: 1; pointer-events: auto; }
-
-            #mobile-bottom-bar {
-                display: flex; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%);
-                gap: 10px; z-index: 10;
-            }
+            #mobile-bottom-bar { display: flex; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); gap: 10px; z-index: 10; }
             #mobile-bottom-bar button { font-size: 14px; padding: 10px 15px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); background: rgba(30,30,30,0.9); border: 1px solid #444; }
-            #mobile-bottom-bar button:active { background: #333; }
-            
-            #builder-preview {
-                width: 140px; height: 105px; bottom: 60px; right: 10px; opacity: 0.8;
-            }
+            #builder-preview { width: 140px; height: 105px; bottom: 60px; right: 10px; opacity: 0.8; }
         }
 
-        /* Modal */
-        .modal-overlay {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100;
-            display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s;
-        }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
         .modal { background: #111; padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; border: 1px solid rgba(255,255,255,0.2); }
         .modal input { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #444; background: #222; color: white; margin: 15px 0; }
-
     </style>
 </head>
 <body>
@@ -340,11 +139,8 @@
         </div>
 
         <video id="single-video" autoplay playsinline></video>
-        <div class="canvas-container" id="single-canvas-wrapper">
-            <canvas id="canvas-single" class="effect-canvas"></canvas>
-        </div>
+        <div class="canvas-container" id="single-canvas-wrapper"><canvas id="canvas-single" class="effect-canvas"></canvas></div>
         
-        <!-- Live UI Layer for Buttons over Camera -->
         <div id="ui-layer"></div>
 
         <div id="controls-panel">
@@ -359,9 +155,7 @@
                 <button id="offset-out">Move Together</button>
                 <button id="offset-reset">Reset Offset</button>
             </div>
-            <div class="info-row">
-                <span id="active-script-label">Active Script: Standard</span>
-            </div>
+            <div class="info-row"><span id="active-script-label">Active Script: Standard</span></div>
         </div>
     </div>
 
@@ -383,9 +177,7 @@
                 </div>
             </div>
 
-            <div id="builder-preview">
-                <canvas id="preview-canvas"></canvas>
-            </div>
+            <div id="builder-preview"><canvas id="preview-canvas"></canvas></div>
 
             <div id="mobile-bottom-bar">
                 <button id="btn-toggle-palette">➕ Add Node</button>
@@ -398,9 +190,8 @@
                 <button id="clear-script-btn" style="width: 100%; margin-top: 5px; background: rgba(239, 68, 68, 0.2);">Clear Workspace</button>
                 <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
                 <div id="saved-scripts-list" style="display: flex; flex-direction: column; gap: 0;"></div>
-                
                 <div style="font-size: 11px; color: #888; text-align: center; margin-top: auto; padding-top: 20px;">
-                    Scroll/pinch to zoom. Click an output, then click an input to connect.
+                    Scroll/pinch to zoom. Drag an output port to an input to connect.
                 </div>
             </div>
         </div>
@@ -429,301 +220,138 @@
     </div>
 
     <script>
-    // --- Dynamic User Variables Data ---
+    // --- Global Application State ---
     window.userVarNames = [];
     window.userVars = {};
-    window.isCameraPaused = false; // State for pause/resume feature
+    window.isCameraPaused = false; 
 
     function getSafeVarName(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
 
-    // --- Config & Node Definitions ---
+    // --- Node Definitions ---
     const NODE_DEFS = {
         camera: { label: 'Camera In', category: 'I/O', inPorts: [], outPorts: ['video'] },
         screen: { label: 'Screen Out', category: 'I/O', inPorts: ['render'], outPorts: [] },
         
-        fps: { 
-            label: 'Framerate Limit', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'fps', label: 'Max FPS', type: 'range', min: 1, max: 60, default: 30 }] 
-        },
-        brightness: { label: 'Brightness', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
-        contrast: { label: 'Contrast', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
-        hue_shift: { label: 'Hue Shift', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'deg', label: 'Degrees', type: 'range', min: -180, max: 180, default: 0 }] },
-        saturation: { label: 'Saturation', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 200, default: 100 }] },
-        translate: {
-            label: 'Translate', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'],
-            params: [
-                { id: 'cx', label: 'Coarse X', type: 'range', min: -1000, max: 1000, default: 0 },
-                { id: 'fx', label: 'Fine X', type: 'range', min: -50, max: 50, default: 0 },
-                { id: 'cy', label: 'Coarse Y', type: 'range', min: -1000, max: 1000, default: 0 },
-                { id: 'fy', label: 'Fine Y', type: 'range', min: -50, max: 50, default: 0 }
-            ]
-        },
-        flip: {
-            label: 'Flip', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'],
-            params: [
-                { id: 'flipX', label: 'Flip X', type: 'select', options: ['false', 'true'], default: 'false' },
-                { id: 'flipY', label: 'Flip Y', type: 'select', options: ['false', 'true'], default: 'false' }
-            ]
-        },
-        grayscale: { 
-            label: 'Grayscale', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] 
-        },
-        invert: { 
-            label: 'Invert', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] 
-        },
-        tint: { 
-            label: 'RGB Filter', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [
-                { id: 'r', label: 'Red', type: 'range', min: 0, max: 255, default: 255 },
-                { id: 'g', label: 'Green', type: 'range', min: 0, max: 255, default: 255 },
-                { id: 'b', label: 'Blue', type: 'range', min: 0, max: 255, default: 255 }
-            ] 
-        },
-        bandpass: { 
-            label: 'Band Pass', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [
-                { id: 'channel', label: 'Target Channel', type: 'select', options: ['luma', 'red', 'green', 'blue'], default: 'luma' },
-                { id: 'median', label: 'Target Val', type: 'range', min: 0, max: 255, default: 127 },
-                { id: 'range', label: 'Pass Width', type: 'range', min: 0, max: 255, default: 50 }
-            ] 
-        },
-        hsv_pass: {
-            label: 'HSV Pass', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'],
-            params: [
-                { id: 'target', label: 'Target Hue', type: 'range', min: 0, max: 360, default: 0 },
-                { id: 'tol', label: 'Hue Tol', type: 'range', min: 0, max: 180, default: 30 },
-                { id: 's_target', label: 'Target Sat', type: 'range', min: 0, max: 100, default: 100 },
-                { id: 's_tol', label: 'Sat Tol', type: 'range', min: 0, max: 100, default: 75 },
-                { id: 'v_target', label: 'Target Val', type: 'range', min: 0, max: 100, default: 100 },
-                { id: 'v_tol', label: 'Val Tol', type: 'range', min: 0, max: 100, default: 100 },
-                { id: 'mode', label: 'Outside Mode', type: 'select', options: ['transparent', 'mask', 'grayscale', 'black'], default: 'transparent' }
-            ]
-        },
-        chroma: {
-            label: 'Chroma Key', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'],
-            params: [
-                { id: 'r', label: 'Key Red', type: 'range', min:0, max:255, default:0 },
-                { id: 'g', label: 'Key Green', type: 'range', min:0, max:255, default:255 },
-                { id: 'b', label: 'Key Blue', type: 'range', min:0, max:255, default:0 },
-                { id: 'tol', label: 'Tolerance', type: 'range', min:1, max:200, default:80 }
-            ]
-        },
-        edge: { 
-            label: 'Edge Detect', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [
-                { id: 'mode', label: 'Output Mode', type: 'select', options: ['grayscale', 'binary'], default: 'grayscale' },
-                { id: 'intensity', label: 'Intensity / Thresh', type: 'range', min: 1, max: 255, default: 50 }
-            ] 
-        },
-        mask: { 
-            label: 'Luma Mask', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'invert', label: 'Invert Mask', type: 'select', options: ['false', 'true'], default: 'false' }] 
-        },
-        pixelate: {
-            label: 'Pixelate', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'],
-            params: [{ id: 'size', label: 'Block Size', type: 'range', min:1, max:100, default:10 }]
-        },
-        accumulate: { 
-            label: 'Long Exposure', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], 
-            params: [
-                { id: 'frames', label: 'Frame Loop', type: 'range', min: 2, max: 60, default: 15 },
-                { id: 'mode', label: 'Blend Mode', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }
-            ] 
-        },
-        blend: { 
-            label: 'Blend', category: 'Image Processing', inPorts: ['bg', 'fg'], outPorts: ['out'], 
-            params: [
-                { id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' },
-                { id: 'mix', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 50 }
-            ] 
-        },
+        // Image Processing
+        fps: { label: 'Framerate Limit', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'fps', label: 'Max FPS', type: 'range', min: 1, max: 60, default: 30 }] },
+        delay: { label: 'Image Delay', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 1, max: 60, default: 15 }] },
+        brightness: { label: 'Brightness', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
+        contrast: { label: 'Contrast', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
+        hue_shift: { label: 'Hue Shift', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'deg', label: 'Degrees', type: 'range', min: -180, max: 180, default: 0 }] },
+        saturation: { label: 'Saturation', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 200, default: 100 }] },
+        translate: { label: 'Translate', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'cx', label: 'X', type: 'range', min: -500, max: 500, default: 0 }, { id: 'cy', label: 'Y', type: 'range', min: -500, max: 500, default: 0 }] },
+        scale: { label: 'Scale', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'scale', label: 'Scale (%)', type: 'range', min: 1, max: 500, default: 100 }] },
+        flip: { label: 'Flip', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'flipX', label: 'Flip X', type: 'select', options: ['false', 'true'], default: 'false' }, { id: 'flipY', label: 'Flip Y', type: 'select', options: ['false', 'true'], default: 'false' }] },
+        grayscale: { label: 'Grayscale', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] },
+        invert: { label: 'Invert', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] },
+        tint: { label: 'RGB Filter', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'r', label: 'Red', type: 'range', min: 0, max: 255, default: 255 }, { id: 'g', label: 'Green', type: 'range', min: 0, max: 255, default: 255 }, { id: 'b', label: 'Blue', type: 'range', min: 0, max: 255, default: 255 }] },
+        bandpass: { label: 'Band Pass', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'channel', label: 'Target', type: 'select', options: ['luma', 'red', 'green', 'blue'], default: 'luma' }, { id: 'median', label: 'Value', type: 'range', min: 0, max: 255, default: 127 }, { id: 'range', label: 'Width', type: 'range', min: 0, max: 255, default: 50 }] },
+        hsv_pass: { label: 'HSV Pass', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'target', label: 'Hue', type: 'range', min: 0, max: 360, default: 0 }, { id: 'tol', label: 'Hue Tol', type: 'range', min: 0, max: 180, default: 30 }, { id: 's_target', label: 'Sat', type: 'range', min: 0, max: 100, default: 100 }, { id: 's_tol', label: 'Sat Tol', type: 'range', min: 0, max: 100, default: 75 }, { id: 'v_target', label: 'Val', type: 'range', min: 0, max: 100, default: 100 }, { id: 'v_tol', label: 'Val Tol', type: 'range', min: 0, max: 100, default: 100 }, { id: 'mode', label: 'Bg Mode', type: 'select', options: ['transparent', 'mask', 'grayscale', 'black'], default: 'transparent' }] },
+        chroma: { label: 'Chroma Key', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'r', label: 'Red', type: 'range', min:0, max:255, default:0 }, { id: 'g', label: 'Green', type: 'range', min:0, max:255, default:255 }, { id: 'b', label: 'Blue', type: 'range', min:0, max:255, default:0 }, { id: 'tol', label: 'Tolerance', type: 'range', min:1, max:200, default:80 }] },
+        edge: { label: 'Edge Detect', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['grayscale', 'binary'], default: 'grayscale' }, { id: 'intensity', label: 'Thresh', type: 'range', min: 1, max: 255, default: 50 }] },
+        mask: { label: 'Luma Mask', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'invert', label: 'Invert', type: 'select', options: ['false', 'true'], default: 'false' }] },
+        pixelate: { label: 'Pixelate', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'size', label: 'Block', type: 'range', min:1, max:100, default:10 }] },
+        accumulate: { label: 'Long Exposure', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 2, max: 60, default: 15 }, { id: 'mode', label: 'Blend', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }] },
+        blend: { label: 'Blend', category: 'Image Processing', inPorts: ['bg', 'fg'], outPorts: ['out'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' }, { id: 'mix', label: 'Amount', type: 'range', min: 0, max: 100, default: 50 }] },
+        get_position: { label: 'Get Position (Mask)', category: 'Image Processing', inPorts: ['video'], outPorts: ['x', 'y', 'found'] },
+        draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{id: 'x', label:'X %', type:'number', default:50}, {id:'y', label:'Y %', type:'number', default:50}] },
 
-        // --- VIZZY-LIKE LOGIC ---
+        // Triggers & Logic
         on_start: { label: 'On Start', category: 'Triggers', inPorts: [], outPorts: ['exec'] },
         on_frame: { label: 'On Frame', category: 'Triggers', inPorts: [], outPorts: ['exec'] },
-        ui_button: { 
-            label: 'UI Button', category: 'Triggers', inPorts: [], outPorts: ['exec'], 
-            params: [
-                {id: 'text', label: 'Text', type: 'text', default: 'Click Me'}, 
-                {id: 'x', label: 'X (%)', type: 'number', default: 50}, 
-                {id: 'y', label: 'Y (%)', type: 'number', default: 80}, 
-                {id: 'w', label: 'Width (px)', type: 'number', default: 120}, 
-                {id: 'h', label: 'Height (px)', type: 'number', default: 40}
-            ] 
-        },
-        delay: { 
-            label: 'Delay', category: 'Triggers', inPorts: ['in'], outPorts: ['out'], 
-            params: [{ id: 'frames', label: 'Delay Frames', type: 'range', min: 1, max: 60, default: 15 }] 
-        },
+        ui_button: { label: 'UI Button', category: 'Triggers', inPorts: [], outPorts: ['exec'], params: [{id: 'text', label: 'Text', type: 'text', default: 'Click Me'}, {id: 'x', label: 'X (%)', type: 'number', default: 50}, {id: 'y', label: 'Y (%)', type: 'number', default: 80}, {id: 'w', label: 'Width', type: 'number', default: 120}, {id: 'h', label: 'Height', type: 'number', default: 40}] },
+        logic_delay: { label: 'Logic Delay', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 1, max: 60, default: 15 }] },
+        if_else: { label: 'If / Else', category: 'Triggers', inPorts: ['exec', 'cond'], outPorts: ['true', 'false'] },
+        capture_frame: { label: 'Capture Frame', category: 'Triggers', inPorts: ['exec', 'video'], outPorts: ['video'] },
         cam_pause: { label: 'Pause Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
         cam_resume: { label: 'Resume Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
         
+        // Math
         math_add: { label: 'Add', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_sub: { label: 'Subtract', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_mult: { label: 'Multiply', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_div: { label: 'Divide', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:1}] },
-        
+        compare: { label: 'Compare', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}, {id: 'op', label: 'Op', type: 'select', options: ['>', '<', '==', '!=', '>=', '<='], default: '>'}] },
         math_sin: { label: 'Sin', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
         math_cos: { label: 'Cos', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
         math_tan: { label: 'Tan', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
         math_pi: { label: 'Pi', category: 'Math', inPorts: [], outPorts: ['out'] },
         math_log: { label: 'Log', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:1}] },
-
         time_sec: { label: 'Time (sec)', category: 'Math', inPorts: [], outPorts: ['val'] },
-        time_date: { label: 'Date (day)', category: 'Math', inPorts: [], outPorts: ['val'] },
 
+        // Variables
         var_get: { label: 'Get Variable', category: 'Variables', hideInPalette: true, inPorts: [], outPorts: ['val'] },
         var_set: { label: 'Set Variable', category: 'Variables', hideInPalette: true, inPorts: ['exec'], outPorts: ['exec'], params: [{id: 'varName', label: 'Variable', type: 'var_select', default: ''}, {id: 'val', label: 'Value', type: 'number', default:0}] },
     };
 
-    // --- State ---
-    let nodes = {}; 
-    let wires = []; 
-    
-    let activeScriptName = "Standard";
-    let savedScripts = [];
-
-    let draggedNode = null;
-    let dragOffsetX = 0, dragOffsetY = 0;
-    
-    let draggingWire = null; 
-    let selectedWire = null; 
-    let pendingPort = null;
-    let dragStartPos = null;
-    let paletteDragItem = null;
-
-    let isPanning = false;
-    let panStartX = 0, panStartY = 0;
-    let panStartScrollLeft = 0, panStartScrollTop = 0;
-    let currentZoom = 1;
-    let activePointers = new Map();
-    let lastPinchDist = null;
-
-    let evalOrder = [];
-    let hasCycleError = false;
-
-    let stream = null;
-    let usingBackCamera = true;
-    let vrMode = false;
-    let vrOffset = 0;
-    let renderLoopId = null;
-    let hideControlsTimeout = null;
-    let videoWidth = 640; 
-    let videoHeight = 480;
+    let nodes = {}; let wires = []; 
+    let activeScriptName = "Standard"; let savedScripts = [];
+    let draggedNode = null, dragOffsetX = 0, dragOffsetY = 0;
+    let draggingWire = null, selectedWire = null, pendingPort = null, dragStartPos = null, paletteDragItem = null;
+    let isPanning = false, panStartX = 0, panStartY = 0, panStartScrollLeft = 0, panStartScrollTop = 0;
+    let currentZoom = 1, activePointers = new Map(), lastPinchDist = null;
+    let evalOrder = [], hasCycleError = false;
+    let stream = null, usingBackCamera = true, vrMode = false, vrOffset = 0, renderLoopId = null, hideControlsTimeout = null;
+    let videoWidth = 640, videoHeight = 480;
 
     // --- DOM Elements ---
     const workspaceViewport = document.getElementById('workspace-viewport');
     const workspaceInner = document.getElementById('workspace-inner');
     const nodesContainer = document.getElementById('nodes-container');
     const wiresSvg = document.getElementById('wires-svg');
-    const videoLeft = document.getElementById('video-left');
-    const videoRight = document.getElementById('video-right');
-    const singleVideo = document.getElementById('single-video');
-    const canvasLeft = document.getElementById('canvas-left');
-    const canvasRight = document.getElementById('canvas-right');
-    const canvasSingle = document.getElementById('canvas-single');
+    const videoLeft = document.getElementById('video-left'), videoRight = document.getElementById('video-right'), singleVideo = document.getElementById('single-video');
+    const canvasLeft = document.getElementById('canvas-left'), canvasRight = document.getElementById('canvas-right'), canvasSingle = document.getElementById('canvas-single');
     const previewCanvas = document.getElementById('preview-canvas');
-    const camControlsPanel = document.getElementById('controls-panel');
-    const viewCam = document.getElementById('view-camera');
-
-    const palettePanel = document.getElementById('palette-panel');
-    const scriptsPanel = document.getElementById('scripts-panel');
-    const sidebarOverlay = document.getElementById('sidebar-overlay');
-    const btnTogglePalette = document.getElementById('btn-toggle-palette');
-    const btnToggleScripts = document.getElementById('btn-toggle-scripts');
+    const camControlsPanel = document.getElementById('controls-panel'), viewCam = document.getElementById('view-camera');
+    const palettePanel = document.getElementById('palette-panel'), scriptsPanel = document.getElementById('scripts-panel'), sidebarOverlay = document.getElementById('sidebar-overlay');
 
     // --- Helpers ---
     function isMobile() { return window.innerWidth <= 768; }
-    function closeAllPanels() {
-        palettePanel.classList.remove('open');
-        scriptsPanel.classList.remove('open');
-        sidebarOverlay.classList.remove('active');
-    }
-
+    function closeAllPanels() { palettePanel.classList.remove('open'); scriptsPanel.classList.remove('open'); sidebarOverlay.classList.remove('active'); }
     function centerWorkspace() {
-        if (workspaceViewport.clientWidth === 0) {
-            setTimeout(centerWorkspace, 50); // wait for visible
-            return;
-        }
-        const targetX = 2000 * currentZoom;
-        const targetY = 2000 * currentZoom;
-        workspaceViewport.scrollLeft = targetX - (workspaceViewport.clientWidth / 2);
-        workspaceViewport.scrollTop = targetY - (workspaceViewport.clientHeight / 2);
+        if (workspaceViewport.clientWidth === 0) { setTimeout(centerWorkspace, 50); return; }
+        workspaceViewport.scrollLeft = 2000 * currentZoom - (workspaceViewport.clientWidth / 2);
+        workspaceViewport.scrollTop = 2000 * currentZoom - (workspaceViewport.clientHeight / 2);
     }
-
-    btnTogglePalette.onclick = () => { palettePanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
-    btnToggleScripts.onclick = () => { scriptsPanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
+    document.getElementById('btn-toggle-palette').onclick = () => { palettePanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
+    document.getElementById('btn-toggle-scripts').onclick = () => { scriptsPanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
     sidebarOverlay.onclick = closeAllPanels;
-
     function generateId() { return Math.random().toString(36).substr(2, 9); }
-
 
     // --- Graph Engine ---
     function rebuildGraphOrder() {
-        hasCycleError = false;
-        let inDegree = {};
-        let adjList = {};
-        
+        hasCycleError = false; let inDegree = {}, adjList = {};
         Object.keys(nodes).forEach(id => {
-            inDegree[id] = 0;
-            adjList[id] = [];
+            inDegree[id] = 0; adjList[id] = [];
             nodes[id].domElement.classList.remove('error');
-            // Reset trigger states on rebuild to guarantee clean start
             if (nodes[id].type === 'on_start') nodes[id].hasStarted = false;
         });
-
-        wires.forEach(w => {
-            adjList[w.fromNode].push(w.toNode);
-            inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1;
-        });
-
+        wires.forEach(w => { adjList[w.fromNode].push(w.toNode); inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1; });
         let queue = [];
-        Object.keys(inDegree).forEach(id => {
-            if (inDegree[id] === 0) queue.push(id);
-        });
-
-        evalOrder = [];
-        let count = 0;
-        
+        Object.keys(inDegree).forEach(id => { if (inDegree[id] === 0) queue.push(id); });
+        evalOrder = []; let count = 0;
         while(queue.length > 0) {
-            let curr = queue.shift();
-            evalOrder.push(curr);
-            count++;
-            
-            adjList[curr].forEach(neighbor => {
-                inDegree[neighbor]--;
-                if (inDegree[neighbor] === 0) queue.push(neighbor);
-            });
+            let curr = queue.shift(); evalOrder.push(curr); count++;
+            adjList[curr].forEach(neighbor => { inDegree[neighbor]--; if (inDegree[neighbor] === 0) queue.push(neighbor); });
         }
-
         if (count !== Object.keys(nodes).length) {
             hasCycleError = true;
-            Object.keys(nodes).forEach(id => {
-                if (!evalOrder.includes(id)) nodes[id].domElement.classList.add('error');
-            });
+            Object.keys(nodes).forEach(id => { if (!evalOrder.includes(id)) nodes[id].domElement.classList.add('error'); });
         }
     }
 
     function createInternalCanvas(width, height) {
-        const c = document.createElement('canvas');
-        c.width = width; c.height = height;
-        return c;
+        const c = document.createElement('canvas'); c.width = width; c.height = height; return c;
     }
 
     function evaluateFrame() {
         if (hasCycleError || evalOrder.length === 0) return;
-        
-        if (singleVideo && singleVideo.videoWidth) {
-            videoWidth = singleVideo.videoWidth;
-            videoHeight = singleVideo.videoHeight;
-        }
+        if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
 
         Object.values(nodes).forEach(node => {
             if (!node.outputData) node.outputData = {};
-            // Make sure delay gets a canvas initialized even if it is in the Triggers tab
-            if (NODE_DEFS[node.type].category === 'Image Processing' || node.type === 'camera' || node.type === 'delay') {
+            const def = NODE_DEFS[node.type];
+            if ((def.category === 'Image Processing' && node.type !== 'get_position') || node.type === 'camera' || node.type === 'capture_frame') {
                 if (!node.canvas || node.canvas.width !== videoWidth) {
                     node.canvas = createInternalCanvas(videoWidth, videoHeight);
                     node.ctx = node.canvas.getContext('2d', { willReadFrequently: true });
@@ -733,485 +361,326 @@
             }
         });
 
-        // Track global exec signals for all blocks
         for (let nodeId of evalOrder) {
-            const node = nodes[nodeId];
-            const def = NODE_DEFS[node.type];
-            let inputs = {};
-            
-            if (def.inPorts) {
-                def.inPorts.forEach(port => {
-                    const wire = wires.find(w => w.toNode === nodeId && w.toPort === port);
-                    inputs[port] = wire ? nodes[wire.fromNode].outputData[wire.fromPort] : null;
-                });
-            }
-            if (def.params) {
-                def.params.forEach(p => {
-                    const wire = wires.find(w => w.toNode === nodeId && w.toPort === p.id);
-                    if (wire) inputs[p.id] = nodes[wire.fromNode].outputData[wire.fromPort];
-                });
-            }
-
+            const node = nodes[nodeId], def = NODE_DEFS[node.type]; let inputs = {};
+            if (def.inPorts) def.inPorts.forEach(port => {
+                const wire = wires.find(w => w.toNode === nodeId && w.toPort === port);
+                inputs[port] = wire ? nodes[wire.fromNode].outputData[wire.fromPort] : null;
+            });
+            if (def.params) def.params.forEach(p => {
+                const wire = wires.find(w => w.toNode === nodeId && w.toPort === p.id);
+                if (wire) inputs[p.id] = nodes[wire.fromNode].outputData[wire.fromPort];
+            });
             applyNodeEffect(node, inputs);
         }
 
-        // Live visual update for isolated variable blocks/pills
         Object.keys(window.userVars).forEach(v => {
             const val = window.userVars[v];
-            const formatted = Number.isInteger(val) ? val : Math.round(val * 100) / 100;
+            let displayVal = val;
+            if (val instanceof HTMLCanvasElement) displayVal = "[Image]";
+            else if (typeof val === 'number') displayVal = Number.isInteger(val) ? val : Math.round(val * 100) / 100;
+            
             const safeName = getSafeVarName(v);
-            document.querySelectorAll(`.live-val-${safeName}`).forEach(el => el.textContent = formatted);
+            document.querySelectorAll(`.live-val-${safeName}`).forEach(el => el.textContent = displayVal);
         });
     }
 
     function applyNodeEffect(node, inputs) {
         const { type, params, ctx, canvas } = node;
         const w = canvas ? canvas.width : 0, h = canvas ? canvas.height : 0;
-        if (ctx && !window.isCameraPaused) ctx.clearRect(0,0,w,h);
+        
+        // Ensure canvases are wiped fresh per frame EXCEPT paused camera
+        if (ctx) {
+            if (type === 'camera' && window.isCameraPaused) {
+                // Do nothing, let camera retain its last frame
+            } else {
+                ctx.clearRect(0,0,w,h);
+            }
+        }
 
-        // Core logic mapper: Wires > Pills > Sliders/Inputs
         const getVal = (id, defVal) => {
             let val;
             if (inputs[id] !== null && inputs[id] !== undefined) val = inputs[id];
-            else if (node.bindings && node.bindings[id]) val = window.userVars[node.bindings[id]] || 0;
+            else if (node.bindings && node.bindings[id]) val = window.userVars[node.bindings[id]] ?? defVal;
             else val = params[id] ?? defVal;
 
-            // Live Update UI for this param on the node itself
             const lbl = document.getElementById(`lbl-${node.id}-${id}`);
-            if (lbl) {
+            if (lbl && typeof val !== 'object') {
                 let fmt = typeof val === 'number' ? (Number.isInteger(val) ? val : Math.round(val*100)/100) : val;
-                if (lbl.dataset.last !== String(fmt)) {
-                    lbl.textContent = fmt;
-                    lbl.dataset.last = fmt;
-                }
+                if (lbl.dataset.last !== String(fmt)) { lbl.textContent = fmt; lbl.dataset.last = fmt; }
             }
             return val;
         };
-
-        const getP = (id, defVal) => {
-            let v = parseFloat(getVal(id, defVal));
-            return isNaN(v) ? 0 : v;
-        };
+        const getP = (id, defVal) => { let v = parseFloat(getVal(id, defVal)); return isNaN(v) ? 0 : v; };
 
         // --- Hardware / Basic I/O ---
         if (type === 'camera') {
             if (stream) {
-                // If paused, we skip writing the singleVideo feed to the context, leaving the frozen image
-                if (!window.isCameraPaused) {
-                    ctx.drawImage(singleVideo, 0, 0, w, h);
-                }
+                if (!window.isCameraPaused) ctx.drawImage(singleVideo, 0, 0, w, h);
             } else {
-                ctx.fillStyle = '#111';
-                ctx.fillRect(0, 0, w, h);
-                ctx.fillStyle = '#666';
-                ctx.font = '24px Arial';
-                ctx.textAlign = 'center';
-                ctx.fillText('Camera Off', w/2, h/2);
+                ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
+                ctx.fillStyle = '#666'; ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.fillText('Camera Off', w/2, h/2);
             }
-            node.outputData['video'] = canvas;
-            return;
+            node.outputData['video'] = canvas; return;
         } 
         if (type === 'screen') {
             const renderTarget = inputs['render'] instanceof HTMLCanvasElement ? inputs['render'] : null;
-            if (stream) renderFinalOutput(renderTarget); // Only push to physical screen if camera is active
+            if (stream) renderFinalOutput(renderTarget);
             return;
         }
 
         // --- Math & Triggers ---
-        if (type === 'math_add') { node.outputData['out'] = getP('a',0) + getP('b',0); return; }
-        if (type === 'math_sub') { node.outputData['out'] = getP('a',0) - getP('b',0); return; }
-        if (type === 'math_mult') { node.outputData['out'] = getP('a',0) * getP('b',0); return; }
-        if (type === 'math_div') { let b = getP('b',1); node.outputData['out'] = b !== 0 ? getP('a',0) / b : 0; return; }
-        
-        if (type === 'math_sin') { node.outputData['out'] = Math.sin(getP('a',0)); return; }
-        if (type === 'math_cos') { node.outputData['out'] = Math.cos(getP('a',0)); return; }
-        if (type === 'math_tan') { node.outputData['out'] = Math.tan(getP('a',0)); return; }
-        if (type === 'math_pi') { node.outputData['out'] = Math.PI; return; }
-        if (type === 'math_log') { node.outputData['out'] = Math.log(getP('a',1)); return; }
+        const mathOps = ['math_add','math_sub','math_mult','math_div','math_sin','math_cos','math_tan','math_pi','math_log', 'compare'];
+        if (mathOps.includes(type)) {
+            let a = getP('a',0), b = getP('b',0);
+            switch(type) {
+                case 'math_add': node.outputData['out'] = a + b; break;
+                case 'math_sub': node.outputData['out'] = a - b; break;
+                case 'math_mult': node.outputData['out'] = a * b; break;
+                case 'math_div': node.outputData['out'] = b !== 0 ? a / b : 0; break;
+                case 'math_sin': node.outputData['out'] = Math.sin(a); break;
+                case 'math_cos': node.outputData['out'] = Math.cos(a); break;
+                case 'math_tan': node.outputData['out'] = Math.tan(a); break;
+                case 'math_pi': node.outputData['out'] = Math.PI; break;
+                case 'math_log': node.outputData['out'] = Math.log(a); break;
+                case 'compare':
+                    let op = params.op || '>', res = false;
+                    if (op==='>') res = a>b; else if (op==='<') res = a<b; else if (op==='==') res = a==b; else if (op==='!=') res = a!=b; else if (op==='>=') res = a>=b; else if (op==='<=') res = a<=b;
+                    node.outputData['out'] = res; break;
+            }
+            return;
+        }
 
-        if (type === 'time_sec') { 
-            const now = new Date();
-            const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-            node.outputData['val'] = (now - startOfDay) / 1000; 
-            return; 
-        }
-        if (type === 'time_date') { node.outputData['val'] = new Date().getDate(); return; }
+        if (type === 'time_sec') { const now = new Date(); const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()); node.outputData['val'] = (now - startOfDay) / 1000; return; }
         
-        if (type === 'cam_pause') {
-            if (inputs['exec']) window.isCameraPaused = true;
-            node.outputData['exec'] = inputs['exec'];
-            return;
-        }
-        if (type === 'cam_resume') {
-            if (inputs['exec']) window.isCameraPaused = false;
-            node.outputData['exec'] = inputs['exec'];
-            return;
-        }
+        if (type === 'cam_pause') { if (inputs['exec']) window.isCameraPaused = true; node.outputData['exec'] = inputs['exec']; return; }
+        if (type === 'cam_resume') { if (inputs['exec']) window.isCameraPaused = false; node.outputData['exec'] = inputs['exec']; return; }
+        if (type === 'if_else') { node.outputData['true'] = inputs['exec'] && inputs['cond']; node.outputData['false'] = inputs['exec'] && !inputs['cond']; return; }
 
         if (type === 'var_set') {
             if (inputs['exec']) {
                 const vName = params.varName;
-                if (vName && window.userVars[vName] !== undefined) window.userVars[vName] = getP('val', 0);
+                if (vName && window.userVars[vName] !== undefined) {
+                    let v = getVal('val', 0);
+                    if (v instanceof HTMLCanvasElement) {
+                        const clone = createInternalCanvas(v.width, v.height);
+                        clone.getContext('2d').drawImage(v, 0, 0);
+                        window.userVars[vName] = clone;
+                    } else {
+                        window.userVars[vName] = v;
+                    }
+                }
             }
-            node.outputData['exec'] = inputs['exec']; 
-            return;
+            node.outputData['exec'] = inputs['exec']; return;
         }
-        if (type === 'var_get') {
-            node.outputData['val'] = window.userVars[params.varName] || 0;
-            return;
-        }
-        if (type === 'on_start') { 
-            if (!node.hasStarted) { node.outputData['exec'] = true; node.hasStarted = true; } 
-            else { node.outputData['exec'] = false; }
-            return; 
-        }
+        if (type === 'var_get') { node.outputData['val'] = window.userVars[params.varName] ?? 0; return; }
+        if (type === 'on_start') { if (!node.hasStarted) { node.outputData['exec'] = true; node.hasStarted = true; } else { node.outputData['exec'] = false; } return; }
         if (type === 'on_frame') { node.outputData['exec'] = true; return; }
         
+        if (type === 'logic_delay') {
+            if (!node.timers) node.timers = [];
+            if (inputs['exec']) node.timers.push(Math.max(1, parseInt(getP('frames', 15))));
+            let trigger = false;
+            for (let i = node.timers.length - 1; i >= 0; i--) {
+                node.timers[i]--;
+                if (node.timers[i] <= 0) { trigger = true; node.timers.splice(i, 1); }
+            }
+            node.outputData['exec'] = trigger; return;
+        }
+
         if (type === 'ui_button') {
             let btn = document.getElementById(`uibtn-${node.id}`);
             if (!btn) {
-                btn = document.createElement('button');
-                btn.id = `uibtn-${node.id}`;
-                btn.style.position = 'absolute';
-                btn.style.pointerEvents = 'auto';
-                btn.style.transform = 'translate(-50%, -50%)';
-                btn.style.borderRadius = '8px';
-                btn.style.background = 'rgba(59, 130, 246, 0.8)';
-                btn.style.color = 'white';
-                btn.style.border = '2px solid white';
-                btn.style.fontWeight = 'bold';
-                btn.style.cursor = 'pointer';
-                btn.style.zIndex = '100';
+                btn = document.createElement('button'); btn.id = `uibtn-${node.id}`;
+                btn.style.position = 'absolute'; btn.style.pointerEvents = 'auto'; btn.style.transform = 'translate(-50%, -50%)'; btn.style.borderRadius = '8px';
+                btn.style.background = 'rgba(59, 130, 246, 0.8)'; btn.style.color = 'white'; btn.style.border = '2px solid white'; btn.style.fontWeight = 'bold';
+                btn.style.cursor = 'pointer'; btn.style.zIndex = '100';
                 btn.onpointerdown = () => { node.clicked = true; };
                 document.getElementById('ui-layer').appendChild(btn);
             }
-
-            let textVal = getVal('text', 'Button');
-            let xVal = getP('x', 50);
-            let yVal = getP('y', 80);
-            let wVal = getP('w', 120);
-            let hVal = getP('h', 40);
-
+            let textVal = getVal('text', 'Button'), xVal = getP('x', 50), yVal = getP('y', 80), wVal = getP('w', 120), hVal = getP('h', 40);
             if (btn.innerText != textVal) btn.innerText = textVal;
             if (btn.dataset.x != xVal) { btn.style.left = `${xVal}%`; btn.dataset.x = xVal; }
             if (btn.dataset.y != yVal) { btn.style.top = `${yVal}%`; btn.dataset.y = yVal; }
             if (btn.dataset.w != wVal) { btn.style.width = `${wVal}px`; btn.dataset.w = wVal; }
             if (btn.dataset.h != hVal) { btn.style.height = `${hVal}px`; btn.dataset.h = hVal; }
-
-            if (node.clicked) {
-                node.outputData['exec'] = true;
-                node.clicked = false;
-            } else {
-                node.outputData['exec'] = false;
-            }
+            
+            if (node.clicked) { node.outputData['exec'] = true; node.clicked = false; } else { node.outputData['exec'] = false; }
             return;
         }
 
-        // --- Image Processing specific routines ---
+        // --- Extracted Complex Nodes ---
+        if (type === 'capture_frame') {
+            if (!node.savedCanvas) node.savedCanvas = createInternalCanvas(w, h);
+            if (inputs['exec']) {
+                const inC = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
+                if (inC) { node.savedCanvas.getContext('2d').clearRect(0,0,w,h); node.savedCanvas.getContext('2d').drawImage(inC, 0, 0, w, h); }
+            }
+            ctx.drawImage(node.savedCanvas, 0, 0);
+            node.outputData['video'] = canvas; return;
+        }
+
+        if (type === 'get_position') {
+            const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
+            if (!inCanvas) { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; return; }
+            const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
+            const data = inCtx.getImageData(0,0,w,h).data;
+            let sumX = 0, sumY = 0, count = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i+3] > 0 && (data[i] > 0 || data[i+1] > 0 || data[i+2] > 0)) {
+                    sumX += (i / 4) % w; sumY += Math.floor((i / 4) / w); count++;
+                }
+            }
+            if (count > 0) {
+                node.outputData['x'] = (sumX / count) / w * 100; node.outputData['y'] = (sumY / count) / h * 100; node.outputData['found'] = true;
+            } else { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; }
+            return;
+        }
+
+        if (type === 'draw_point') {
+            const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
+            if (inCanvas) ctx.drawImage(inCanvas, 0, 0);
+            const x = (getP('x', 50) / 100) * w, y = (getP('y', 50) / 100) * h;
+            ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.stroke();
+            node.outputData['video'] = canvas; return;
+        }
+
+        // Validate Input Canvas for Standard Filters
+        const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
+        if (!inCanvas && type !== 'blend') return; 
+
+        // --- Fast Native Render Filters ---
         if (type === 'fps') {
-            const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-            if (!inCanvas) return;
-            const limit = getP('fps', 30);
-            const now = performance.now();
+            const limit = getP('fps', 30), now = performance.now();
             if (!node.lastTime) node.lastTime = 0;
-            if (now - node.lastTime >= (1000 / limit)) {
-                node.lastTime = now;
-                ctx.drawImage(inCanvas, 0, 0);
-            } else if (node.outputData['out']) {
-                ctx.drawImage(node.outputData['out'], 0, 0); // Keep old frame
-            }
-            node.outputData['out'] = canvas;
-            return;
+            if (now - node.lastTime >= (1000 / limit)) { node.lastTime = now; ctx.drawImage(inCanvas, 0, 0); } else if (node.outputData['video']) ctx.drawImage(node.outputData['video'], 0, 0);
+            node.outputData['video'] = canvas; return;
         }
-
         if (type === 'delay') {
-            const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-            if (!inCanvas) return;
             const reqFrames = Math.max(1, parseInt(getP('frames', 15)));
-            if (!node.buffer) node.buffer = [];
-            
             while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));
             if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
-            
             node.bufIndex = (node.bufIndex || 0) % reqFrames;
-            const bufCtx = node.buffer[node.bufIndex].getContext('2d');
-            bufCtx.clearRect(0,0,w,h);
-            bufCtx.drawImage(inCanvas, 0, 0);
-            
-            let delayedIndex = (node.bufIndex + 1) % reqFrames;
-            ctx.drawImage(node.buffer[delayedIndex] || node.buffer[0], 0, 0);
-            node.bufIndex++;
-            node.outputData['out'] = canvas;
-            return;
+            const bufCtx = node.buffer[node.bufIndex].getContext('2d'); bufCtx.clearRect(0,0,w,h); bufCtx.drawImage(inCanvas, 0, 0);
+            ctx.drawImage(node.buffer[(node.bufIndex + 1) % reqFrames] || node.buffer[0], 0, 0);
+            node.bufIndex++; node.outputData['video'] = canvas; return;
         }
-
         if (type === 'accumulate') {
-            const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-            if (!inCanvas) return;
-            const reqFrames = Math.max(2, parseInt(getP('frames', 15)));
-            const mode = params.mode || 'average';
-            
-            if (!node.buffer) node.buffer = [];
+            const reqFrames = Math.max(2, parseInt(getP('frames', 15))), mode = params.mode || 'average';
             while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));
             if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
-            
             node.bufIndex = (node.bufIndex || 0) % reqFrames;
-            const curCtx = node.buffer[node.bufIndex].getContext('2d');
-            curCtx.clearRect(0,0,w,h);
-            curCtx.drawImage(inCanvas, 0, 0);
-            
-            if(node.frameCount === undefined) node.frameCount = 0;
-            if(node.frameCount < reqFrames) node.frameCount++;
+            const curCtx = node.buffer[node.bufIndex].getContext('2d'); curCtx.clearRect(0,0,w,h); curCtx.drawImage(inCanvas, 0, 0);
+            if(node.frameCount === undefined) node.frameCount = 0; if(node.frameCount < reqFrames) node.frameCount++;
             const activeFrames = Math.min(node.frameCount, reqFrames);
-
-            if (mode === 'average') {
-                ctx.globalAlpha = 1.0 / activeFrames;
-                ctx.globalCompositeOperation = 'source-over'; 
-            } else if (mode === 'lighten') {
-                ctx.globalCompositeOperation = 'lighten';
-            } else if (mode === 'darken') {
-                ctx.globalCompositeOperation = 'darken';
-            }
-
-            for(let i=0; i<activeFrames; i++) ctx.drawImage(node.buffer[i], 0, 0);
             
-            ctx.globalAlpha = 1.0;
-            ctx.globalCompositeOperation = 'source-over';
-            node.bufIndex++;
-            node.outputData['out'] = canvas;
-            return;
+            if (mode === 'average') { ctx.globalAlpha = 1.0 / activeFrames; ctx.globalCompositeOperation = 'source-over'; }
+            else if (mode === 'lighten') { ctx.globalCompositeOperation = 'lighten'; } else if (mode === 'darken') { ctx.globalCompositeOperation = 'darken'; }
+            for(let i=0; i<activeFrames; i++) ctx.drawImage(node.buffer[i], 0, 0);
+            ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.bufIndex++; node.outputData['video'] = canvas; return;
         }
-
         if (type === 'blend') {
-            const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null;
-            const fgC = inputs['fg'] instanceof HTMLCanvasElement ? inputs['fg'] : null;
+            const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null, fgC = inputs['fg'] instanceof HTMLCanvasElement ? inputs['fg'] : null;
             if (!bgC && !fgC) return;
             if (!bgC || !fgC) { ctx.drawImage(bgC || fgC, 0, 0); node.outputData['out'] = canvas; return; }
-
-            const mode = params.mode || 'mix';
-            const mixAmt = getP('mix', 50) / 100;
-
-            ctx.drawImage(bgC, 0, 0);
-            ctx.globalAlpha = mixAmt;
-            
-            if (mode === 'add') ctx.globalCompositeOperation = 'lighter';
-            else if (mode === 'multiply') ctx.globalCompositeOperation = 'multiply';
-            else if (mode === 'screen') ctx.globalCompositeOperation = 'screen';
-            else if (mode === 'difference') ctx.globalCompositeOperation = 'difference';
-            else ctx.globalCompositeOperation = 'source-over'; 
-            
-            ctx.drawImage(fgC, 0, 0);
-            ctx.globalAlpha = 1.0;
-            ctx.globalCompositeOperation = 'source-over';
-            node.outputData['out'] = canvas;
-            return;
+            const mode = params.mode || 'mix', mixAmt = getP('mix', 50) / 100;
+            ctx.drawImage(bgC, 0, 0); ctx.globalAlpha = mixAmt;
+            if (mode === 'add') ctx.globalCompositeOperation = 'lighter'; else if (mode === 'multiply') ctx.globalCompositeOperation = 'multiply'; else if (mode === 'screen') ctx.globalCompositeOperation = 'screen'; else if (mode === 'difference') ctx.globalCompositeOperation = 'difference';
+            ctx.drawImage(fgC, 0, 0); ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.outputData['out'] = canvas; return;
         }
-
-        if (type === 'translate') {
-            const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-            if (!inCanvas) return;
-            const tx = getP('cx', 0) + getP('fx', 0);
-            const ty = getP('cy', 0) + getP('fy', 0);
-            
-            ctx.save();
-            ctx.translate(tx, ty);
-            ctx.drawImage(inCanvas, 0, 0);
-            ctx.restore();
-            node.outputData['out'] = canvas;
-            return;
-        }
-
-        if (type === 'flip') {
-            const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-            if (!inCanvas) return;
-            const flipX = params.flipX === 'true';
-            const flipY = params.flipY === 'true';
-            
-            ctx.save();
-            ctx.translate(flipX ? w : 0, flipY ? h : 0);
-            ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
-            ctx.drawImage(inCanvas, 0, 0);
-            ctx.restore();
-            node.outputData['out'] = canvas;
-            return;
-        }
-
+        if (type === 'translate') { ctx.save(); ctx.translate(getP('cx', 0), getP('cy', 0)); ctx.drawImage(inCanvas, 0, 0); ctx.restore(); node.outputData['video'] = canvas; return; }
+        if (type === 'scale') { const scalePct = getP('scale', 100) / 100; ctx.save(); ctx.translate(w / 2, h / 2); ctx.scale(scalePct, scalePct); ctx.translate(-w / 2, -h / 2); ctx.drawImage(inCanvas, 0, 0); ctx.restore(); node.outputData['video'] = canvas; return; }
+        if (type === 'flip') { const flipX = params.flipX === 'true', flipY = params.flipY === 'true'; ctx.save(); ctx.translate(flipX ? w : 0, flipY ? h : 0); ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1); ctx.drawImage(inCanvas, 0, 0); ctx.restore(); node.outputData['video'] = canvas; return; }
         if (type === 'pixelate') {
-            const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-            if (!inCanvas) return;
             const size = Math.max(1, parseInt(getP('size', 10)));
-            if (size <= 1) { ctx.drawImage(inCanvas, 0, 0); node.outputData['out'] = canvas; return; }
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(inCanvas, 0, 0, w/size, h/size);
-            ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
-            node.outputData['out'] = canvas;
-            return;
+            if (size <= 1) { ctx.drawImage(inCanvas, 0, 0); node.outputData['video'] = canvas; return; }
+            ctx.imageSmoothingEnabled = false; ctx.drawImage(inCanvas, 0, 0, w/size, h/size); ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
+            node.outputData['video'] = canvas; return;
         }
 
-        const inCanvas = inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null;
-        if (!inCanvas) return; 
-
-        // --- CPU Bound Pixel Processors (Reliable & Optimized) ---
+        // --- CPU Bound Pixel Processors ---
         const cpuTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'hue_shift', 'saturation', 'tint', 'hsv_pass', 'bandpass', 'chroma', 'mask', 'edge'];
-        
         if (cpuTypes.includes(type)) {
             const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
             const imgData = inCtx.getImageData(0,0,w,h);
-            const data = imgData.data; 
-            const len = data.length;
+            const data = imgData.data; const len = data.length;
 
             if (type === 'grayscale') {
-                const amt = getP('amount', 100) / 100;
-                const invAmt = 1 - amt;
+                const amt = getP('amount', 100) / 100, invAmt = 1 - amt;
                 for (let i=0; i<len; i+=4) {
                     if (data[i+3] === 0) continue;
-                    let r=data[i], g=data[i+1], b=data[i+2];
-                    let gray = 0.299*r + 0.587*g + 0.114*b;
-                    data[i] = gray * amt + r * invAmt;
-                    data[i+1] = gray * amt + g * invAmt;
-                    data[i+2] = gray * amt + b * invAmt;
+                    let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+                    data[i] = gray * amt + data[i] * invAmt; data[i+1] = gray * amt + data[i+1] * invAmt; data[i+2] = gray * amt + data[i+2] * invAmt;
                 }
             } 
             else if (type === 'invert') {
                 const amt = getP('amount', 100) / 100;
-                for (let i=0; i<len; i+=4) {
-                    if (data[i+3] === 0) continue;
-                    data[i] += (255 - 2*data[i])*amt;
-                    data[i+1] += (255 - 2*data[i+1])*amt;
-                    data[i+2] += (255 - 2*data[i+2])*amt;
-                }
+                for (let i=0; i<len; i+=4) { if (data[i+3] === 0) continue; data[i] += (255 - 2*data[i])*amt; data[i+1] += (255 - 2*data[i+1])*amt; data[i+2] += (255 - 2*data[i+2])*amt; }
             }
             else if (type === 'brightness') {
                 const amt = getP('amount', 0) * 2.55; 
-                for (let i=0; i<len; i+=4) {
-                    if (data[i+3] === 0) continue;
-                    data[i] += amt; data[i+1] += amt; data[i+2] += amt;
-                }
+                for (let i=0; i<len; i+=4) { if (data[i+3] === 0) continue; data[i] += amt; data[i+1] += amt; data[i+2] += amt; }
             }
             else if (type === 'contrast') {
-                const amt = getP('amount', 0);
-                const factor = (259 * (amt + 255)) / (255 * (259 - amt));
-                for (let i=0; i<len; i+=4) {
-                    if (data[i+3] === 0) continue;
-                    data[i] = factor * (data[i] - 128) + 128;
-                    data[i+1] = factor * (data[i+1] - 128) + 128;
-                    data[i+2] = factor * (data[i+2] - 128) + 128;
-                }
+                const amt = getP('amount', 0), factor = (259 * (amt + 255)) / (255 * (259 - amt));
+                for (let i=0; i<len; i+=4) { if (data[i+3] === 0) continue; data[i] = factor * (data[i] - 128) + 128; data[i+1] = factor * (data[i+1] - 128) + 128; data[i+2] = factor * (data[i+2] - 128) + 128; }
             }
             else if (type === 'hue_shift' || type === 'saturation') {
-                let hShift = 0, sScale = 1;
-                if (type === 'hue_shift') hShift = getP('deg', 0);
-                if (type === 'saturation') sScale = getP('amount', 100) / 100;
-
-                const angle = hShift * Math.PI / 180;
-                const c = Math.cos(angle), s = Math.sin(angle);
+                let hShift = type==='hue_shift' ? getP('deg', 0) : 0, sScale = type==='saturation' ? getP('amount', 100) / 100 : 1;
+                const angle = hShift * Math.PI / 180, c = Math.cos(angle), s = Math.sin(angle);
                 const lumR = 0.213, lumG = 0.715, lumB = 0.072;
-                
-                const m0 = (lumR + (1 - lumR) * c - lumR * s) * sScale + lumR * (1 - sScale);
-                const m1 = (lumG - lumG * c - lumG * s) * sScale + lumG * (1 - sScale);
-                const m2 = (lumB - lumB * c + (1 - lumB) * s) * sScale + lumB * (1 - sScale);
-                const m3 = (lumR - lumR * c + 0.143 * s) * sScale + lumR * (1 - sScale);
-                const m4 = (lumG + (1 - lumG) * c + 0.140 * s) * sScale + lumG * (1 - sScale);
-                const m5 = (lumB - lumB * c - 0.283 * s) * sScale + lumB * (1 - sScale);
-                const m6 = (lumR - lumR * c - (1 - lumR) * s) * sScale + lumR * (1 - sScale);
-                const m7 = (lumG - lumG * c + lumG * s) * sScale + lumG * (1 - sScale);
-                const m8 = (lumB + (1 - lumB) * c + lumB * s) * sScale + lumB * (1 - sScale);
-
+                const m0 = (lumR + (1 - lumR) * c - lumR * s) * sScale + lumR * (1 - sScale), m1 = (lumG - lumG * c - lumG * s) * sScale + lumG * (1 - sScale), m2 = (lumB - lumB * c + (1 - lumB) * s) * sScale + lumB * (1 - sScale);
+                const m3 = (lumR - lumR * c + 0.143 * s) * sScale + lumR * (1 - sScale), m4 = (lumG + (1 - lumG) * c + 0.140 * s) * sScale + lumG * (1 - sScale), m5 = (lumB - lumB * c - 0.283 * s) * sScale + lumB * (1 - sScale);
+                const m6 = (lumR - lumR * c - (1 - lumR) * s) * sScale + lumR * (1 - sScale), m7 = (lumG - lumG * c + lumG * s) * sScale + lumG * (1 - sScale), m8 = (lumB + (1 - lumB) * c + lumB * s) * sScale + lumB * (1 - sScale);
                 for (let i=0; i<len; i+=4) {
                     if (data[i+3] === 0) continue;
                     let r = data[i], g = data[i+1], b = data[i+2];
-                    data[i]   = r * m0 + g * m1 + b * m2;
-                    data[i+1] = r * m3 + g * m4 + b * m5;
-                    data[i+2] = r * m6 + g * m7 + b * m8;
+                    data[i] = r * m0 + g * m1 + b * m2; data[i+1] = r * m3 + g * m4 + b * m5; data[i+2] = r * m6 + g * m7 + b * m8;
                 }
             }
             else if (type === 'tint') {
-                const rF = getP('r', 255) / 255;
-                const gF = getP('g', 255) / 255;
-                const bF = getP('b', 255) / 255;
-                for (let i=0; i<len; i+=4) {
-                    if (data[i+3] === 0) continue;
-                    data[i]*=rF; data[i+1]*=gF; data[i+2]*=bF;
-                }
+                const rF = getP('r', 255) / 255, gF = getP('g', 255) / 255, bF = getP('b', 255) / 255;
+                for (let i=0; i<len; i+=4) { if (data[i+3] === 0) continue; data[i]*=rF; data[i+1]*=gF; data[i+2]*=bF; }
             } 
             else if (type === 'hsv_pass') {
-                const targetHue = getP('target', 0) / 360;
-                const tolHue = getP('tol', 30) / 360;
-                const targetSat = getP('s_target', 100) / 100;
-                const tolSat = getP('s_tol', 75) / 100;
-                const targetVal = getP('v_target', 100) / 100;
-                const tolVal = getP('v_tol', 100) / 100;
-                const mode = params.mode || 'transparent';
-
+                const targetHue = getP('target', 0) / 360, tolHue = getP('tol', 30) / 360, targetSat = getP('s_target', 100) / 100, tolSat = getP('s_tol', 75) / 100;
+                const targetVal = getP('v_target', 100) / 100, tolVal = getP('v_tol', 100) / 100, mode = params.mode || 'transparent';
                 for (let i=0; i<len; i+=4) {
                     if (data[i+3] === 0) continue;
-                    let r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255;
-                    let max = Math.max(r, g, b), min = Math.min(r, g, b);
-                    let h, s, v = max, d = max - min;
-                    s = max === 0 ? 0 : d / max;
-
+                    let r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255, max = Math.max(r, g, b), min = Math.min(r, g, b);
+                    let h, s, v = max, d = max - min; s = max === 0 ? 0 : d / max;
                     if (max === min) h = 0;
                     else {
-                        switch (max) {
-                            case r: h = (g - b) / d + (g < b ? 6 : 0); break;
-                            case g: h = (b - r) / d + 2; break;
-                            case b: h = (r - g) / d + 4; break;
-                        }
+                        switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; }
                         h /= 6;
                     }
-
-                    let isOutside = false;
-                    let hDist = Math.abs(h - targetHue);
+                    let isOutside = false, hDist = Math.abs(h - targetHue);
                     if (hDist > 0.5) hDist = 1.0 - hDist;
-                    
                     if (hDist > tolHue || Math.abs(s - targetSat) > tolSat || Math.abs(v - targetVal) > tolVal) {
-                        isOutside = true;
-                        if (mode === 'black') v = 0; else if (mode === 'grayscale') s = 0;
+                        isOutside = true; if (mode === 'black') v = 0; else if (mode === 'grayscale') s = 0;
                     }
-
                     let newR, newG, newB;
                     if (s === 0) newR = newG = newB = v;
                     else {
-                        let i_h = Math.floor(h * 6), f = h * 6 - i_h;
-                        let p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
-                        switch (i_h % 6) {
-                            case 0: newR = v, newG = t, newB = p; break;
-                            case 1: newR = q, newG = v, newB = p; break;
-                            case 2: newR = p, newG = v, newB = t; break;
-                            case 3: newR = p, newG = q, newB = v; break;
-                            case 4: newR = t, newG = p, newB = v; break;
-                            case 5: newR = v, newG = p, newB = q; break;
-                        }
+                        let i_h = Math.floor(h * 6), f = h * 6 - i_h, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+                        switch (i_h % 6) { case 0: newR = v, newG = t, newB = p; break; case 1: newR = q, newG = v, newB = p; break; case 2: newR = p, newG = v, newB = t; break; case 3: newR = p, newG = q, newB = v; break; case 4: newR = t, newG = p, newB = v; break; case 5: newR = v, newG = p, newB = q; break; }
                     }
-                    
-                    if (mode === 'mask') {
-                        let maskVal = isOutside ? 0 : 255;
-                        data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255;
-                    } else {
-                        data[i] = newR * 255; data[i+1] = newG * 255; data[i+2] = newB * 255;
-                        if (isOutside && mode === 'transparent') data[i+3] = 0; 
-                    }
+                    if (mode === 'mask') { let maskVal = isOutside ? 0 : 255; data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255; } 
+                    else { data[i] = newR * 255; data[i+1] = newG * 255; data[i+2] = newB * 255; if (isOutside && mode === 'transparent') data[i+3] = 0; }
                 }
             }
             else if (type === 'bandpass') {
-                const med = parseInt(getP('median', 127)), rh = parseInt(getP('range', 50))/2;
-                const targetChannel = params.channel || 'luma';
-                
+                const med = parseInt(getP('median', 127)), rh = parseInt(getP('range', 50))/2, targetChannel = params.channel || 'luma';
                 for (let i=0; i<len; i+=4) {
                     if (data[i+3] === 0) continue;
-                    let val;
-                    if (targetChannel === 'red') val = data[i];
-                    else if (targetChannel === 'green') val = data[i+1];
-                    else if (targetChannel === 'blue') val = data[i+2];
-                    else val = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; 
-
+                    let val; if (targetChannel === 'red') val = data[i]; else if (targetChannel === 'green') val = data[i+1]; else if (targetChannel === 'blue') val = data[i+2]; else val = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; 
                     if (Math.abs(val - med) > rh) { data[i] = data[i+1] = data[i+2] = 0; }
                 }
             } 
             else if (type === 'chroma') {
-                const kr = getP('r', 0), kg = getP('g', 255), kb = getP('b', 0);
-                const tol = getP('tol', 80);
-                const tolSq = tol * tol; 
+                const kr = getP('r', 0), kg = getP('g', 255), kb = getP('b', 0), tolSq = getP('tol', 80) * getP('tol', 80); 
                 for (let i=0; i<len; i+=4) {
                     if (data[i+3] === 0) continue;
                     const dr = data[i]-kr, dg = data[i+1]-kg, db = data[i+2]-kb;
@@ -1220,191 +689,95 @@
             }
             else if (type === 'mask') {
                 const inv = params.invert === 'true';
-                for (let i=0; i<len; i+=4) {
-                    if (data[i+3] === 0) continue;
-                    let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-                    data[i+3] = inv ? (255 - gray) : gray; 
-                }
+                for (let i=0; i<len; i+=4) { if (data[i+3] === 0) continue; let gray = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; data[i+3] = inv ? (255 - gray) : gray; }
             }
             else if (type === 'edge') {
-                const intensity = parseInt(getP('intensity', 50));
-                const mode = params.mode || 'grayscale';
-                if(!node.grayBuffer || node.grayBuffer.length !== w * h) node.grayBuffer = new Uint8Array(w * h);
+                const intensity = parseInt(getP('intensity', 50)), mode = params.mode || 'grayscale';
                 const gray = node.grayBuffer;
-                
-                for(let i=0, j=0; i<len; i+=4, j++) {
-                    gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
-                }
-                
+                for(let i=0, j=0; i<len; i+=4, j++) gray[j] = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
                 for (let y = 0; y < h; y++) {
                     for (let x = 0; x < w; x++) {
-                        const idx = y * w + x;
-                        const c = gray[idx];
-                        const right = x < w - 1 ? gray[idx + 1] : c;
-                        const bottom = y < h - 1 ? gray[idx + w] : c;
-                        
+                        const idx = y * w + x, c = gray[idx], right = x < w - 1 ? gray[idx + 1] : c, bottom = y < h - 1 ? gray[idx + w] : c;
                         const diff = Math.abs(c - right) + Math.abs(c - bottom);
                         const val = mode === 'binary' ? (diff > intensity ? 255 : 0) : Math.min(255, diff * (intensity / 10));
-                        
-                        const outIdx = idx * 4;
-                        data[outIdx] = data[outIdx+1] = data[outIdx+2] = val;
-                        data[outIdx+3] = 255;
+                        const outIdx = idx * 4; data[outIdx] = data[outIdx+1] = data[outIdx+2] = val; data[outIdx+3] = 255;
                     }
                 }
             }
 
             ctx.putImageData(imgData, 0, 0);
-            node.outputData['out'] = canvas;
+            node.outputData['video'] = canvas;
         }
     }
 
     function renderFinalOutput(sourceCanvas) {
         const targets = vrMode ? [canvasLeft, canvasRight] : [canvasSingle];
-        
-        if (!sourceCanvas) {
-            canvasLeft.style.display = 'none'; canvasRight.style.display = 'none';
-            canvasSingle.style.display = 'none'; previewCanvas.style.display = 'none'; return;
-        }
-
+        if (!sourceCanvas) { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; canvasSingle.style.display = 'none'; previewCanvas.style.display = 'none'; return; }
         targets.forEach(c => {
             c.style.display = 'block';
             if (c.width !== sourceCanvas.width) c.width = sourceCanvas.width;
             if (c.height !== sourceCanvas.height) c.height = sourceCanvas.height;
             c.getContext('2d').drawImage(sourceCanvas, 0, 0);
         });
-
-        if (vrMode) canvasSingle.style.display = 'none';
-        else { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; }
-
+        if (vrMode) canvasSingle.style.display = 'none'; else { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; }
         previewCanvas.style.display = 'block';
         if (previewCanvas.width !== sourceCanvas.width) previewCanvas.width = sourceCanvas.width;
         if (previewCanvas.height !== sourceCanvas.height) previewCanvas.height = sourceCanvas.height;
         previewCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
     }
 
-    function renderLoop() {
-        evaluateFrame();
-        renderLoopId = requestAnimationFrame(renderLoop);
-    }
+    function renderLoop() { evaluateFrame(); renderLoopId = requestAnimationFrame(renderLoop); }
 
     // --- UI Interactions ---
-
-    function setPendingPort(nodeId, port, isOut, element) {
-        clearPendingPort();
-        pendingPort = { nodeId, port, isOut };
-        if (element) element.classList.add('pending');
-    }
-
-    function clearPendingPort() {
-        if (pendingPort) {
-            document.querySelectorAll('.port.pending').forEach(el => el.classList.remove('pending'));
-            pendingPort = null;
-        }
-    }
+    function setPendingPort(nodeId, port, isOut, element) { clearPendingPort(); pendingPort = { nodeId, port, isOut }; if (element) element.classList.add('pending'); }
+    function clearPendingPort() { if (pendingPort) { document.querySelectorAll('.port.pending').forEach(el => el.classList.remove('pending')); pendingPort = null; } }
     
     window.updateSwatch = function(nodeId) {
-        const swatch = document.getElementById(`swatch-${nodeId}`);
-        if (!swatch) return;
-        const node = nodes[nodeId];
-        if (!node) return;
-        const params = node.params;
-        const h = parseFloat(params.target || 0);
-        const s = parseFloat(params.s_target !== undefined ? params.s_target : 50) / 100;
-        const v = parseFloat(params.v_target !== undefined ? params.v_target : 50) / 100;
-
-        let r, g, b;
-        let i = Math.floor(h / 60);
-        let f = h / 60 - i;
-        let p = v * (1 - s); let q = v * (1 - f * s); let t = v * (1 - (1 - f) * s);
-        switch (i % 6) {
-            case 0: r = v, g = t, b = p; break; case 1: r = q, g = v, b = p; break;
-            case 2: r = p, g = v, b = t; break; case 3: r = p, g = q, b = v; break;
-            case 4: r = t, g = p, b = v; break; case 5: r = v, g = p, b = q; break;
-        }
+        const swatch = document.getElementById(`swatch-${nodeId}`); if (!swatch) return;
+        const node = nodes[nodeId]; if (!node) return;
+        const h = parseFloat(node.params.target || 0), s = parseFloat(node.params.s_target !== undefined ? node.params.s_target : 50) / 100, v = parseFloat(node.params.v_target !== undefined ? node.params.v_target : 50) / 100;
+        let r, g, b, i = Math.floor(h / 60), f = h / 60 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+        switch (i % 6) { case 0: r = v, g = t, b = p; break; case 1: r = q, g = v, b = p; break; case 2: r = p, g = v, b = t; break; case 3: r = p, g = q, b = v; break; case 4: r = t, g = p, b = v; break; case 5: r = v, g = p, b = q; break; }
         swatch.style.background = `rgb(${Math.round(r*255)}, ${Math.round(g*255)}, ${Math.round(b*255)})`;
     };
 
-    // UI renderer for parameter slots (handles slider vs variable pill)
     function renderParamUI(nodeId, paramId) {
-        const node = nodes[nodeId];
-        const pui = document.getElementById(`pui-${nodeId}-${paramId}`);
-        const pDef = NODE_DEFS[node.type].params.find(p => p.id === paramId);
+        const node = nodes[nodeId], pui = document.getElementById(`pui-${nodeId}-${paramId}`), pDef = NODE_DEFS[node.type].params.find(p => p.id === paramId);
         if (!pui || !pDef) return;
-        
-        const boundVar = node.bindings && node.bindings[paramId];
-        const port = document.querySelector(`.param-port[data-node="${nodeId}"][data-port="${paramId}"]`);
-
+        const boundVar = node.bindings && node.bindings[paramId], port = document.querySelector(`.param-port[data-node="${nodeId}"][data-port="${paramId}"]`);
         if (boundVar) {
             const safeName = getSafeVarName(boundVar);
-            pui.innerHTML = `<div class="var-pill" data-varname="${boundVar}" data-node="${nodeId}" data-param="${paramId}">
-                ${boundVar} <span class="live-val-${safeName}">0</span>
-            </div>`;
-            
-            // Allow dragging out of the parameter slot
+            pui.innerHTML = `<div class="var-pill" data-varname="${boundVar}" data-node="${nodeId}" data-param="${paramId}">${boundVar} <span class="live-val-${safeName}">0</span></div>`;
             const pill = pui.querySelector('.var-pill');
             pill.addEventListener('pointerdown', (e) => {
-                e.stopPropagation();
-                node.bindings[paramId] = null; // Unbind
-                renderParamUI(nodeId, paramId); // Restore UI immediately
-                
-                // Spawn a new dragging node under cursor
-                const wsRect = workspaceInner.getBoundingClientRect();
-                const x = (e.clientX - wsRect.left) / currentZoom;
-                const y = (e.clientY - wsRect.top) / currentZoom;
+                e.stopPropagation(); node.bindings[paramId] = null; renderParamUI(nodeId, paramId); 
+                const wsRect = workspaceInner.getBoundingClientRect(), x = (e.clientX - wsRect.left) / currentZoom, y = (e.clientY - wsRect.top) / currentZoom;
                 const newNodeId = createNode('var_get', x - 50, y - 20, null, {varName: boundVar});
-                
-                draggedNode = newNodeId;
-                const el = nodes[newNodeId].domElement;
-                dragOffsetX = 50; dragOffsetY = 20; 
-                el.style.zIndex = 5; el.classList.add('drag-active');
-                
-                // Seamlessly transfer pointer interaction
-                activePointers.set(e.pointerId, e);
-                workspaceViewport.setPointerCapture(e.pointerId);
+                draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 50; dragOffsetY = 20; el.style.zIndex = 5; el.classList.add('drag-active');
+                activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){}
             });
-            if(port) port.style.display = 'none'; // Hide port when pill is bound
-
+            if(port) port.style.display = 'none';
         } else {
-            const val = node.params[paramId];
-            let inputHtml = '';
-            if (pDef.type === 'range') {
-                inputHtml = `<input type="range" class="param-input" id="input-${nodeId}-${paramId}" min="${pDef.min}" max="${pDef.max}" value="${val}" oninput="updateParam('${nodeId}','${paramId}',this.value)">`;
-            } else if (pDef.type === 'number') {
-                inputHtml = `<input type="number" class="param-input" id="input-${nodeId}-${paramId}" value="${val}" style="width: 100%; padding: 4px; background: #222; border: 1px solid #444; border-radius: 4px; color: white;" onchange="updateParam('${nodeId}','${paramId}',this.value)">`;
-            } else if (pDef.type === 'text') {
-                inputHtml = `<input type="text" class="param-input" id="input-${nodeId}-${paramId}" value="${val}" style="width: 100%; padding: 4px; background: #222; border: 1px solid #444; border-radius: 4px; color: white;" oninput="updateParam('${nodeId}','${paramId}',this.value)">`;
-            } else if (pDef.type === 'select' || pDef.type === 'var_select') {
+            const val = node.params[paramId]; let inputHtml = '';
+            if (pDef.type === 'range') inputHtml = `<input type="range" class="param-input" id="input-${nodeId}-${paramId}" min="${pDef.min}" max="${pDef.max}" value="${val}" oninput="updateParam('${nodeId}','${paramId}',this.value)">`;
+            else if (pDef.type === 'number' || pDef.type === 'text') inputHtml = `<input type="${pDef.type}" class="param-input" id="input-${nodeId}-${paramId}" value="${val}" style="width: 100%; padding: 4px; background: #222; border: 1px solid #444; border-radius: 4px; color: white;" ${pDef.type==='number'?'onchange':'oninput'}="updateParam('${nodeId}','${paramId}',this.value)">`;
+            else if (pDef.type === 'select' || pDef.type === 'var_select') {
                 let opts = pDef.type === 'var_select' ? window.userVarNames : pDef.options;
                 let optHtml = opts.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('');
                 inputHtml = `<select class="node-select param-input" id="input-${nodeId}-${paramId}" onchange="updateParam('${nodeId}','${paramId}',this.value)">${optHtml}</select>`;
             }
-            pui.innerHTML = inputHtml;
-            if(port) port.style.display = 'block';
+            pui.innerHTML = inputHtml; if(port) port.style.display = 'block';
         }
     }
 
     function createNode(type, x, y, restoredId = null, restoredParams = null, restoredBindings = null) {
-        const def = NODE_DEFS[type];
-        if (!def) return null;
+        const def = NODE_DEFS[type]; if (!def) return null;
+        const id = restoredId || generateId(), el = document.createElement('div'); el.className = 'node'; el.id = `node-${id}`; el.style.left = `${x}px`; el.style.top = `${y}px`;
+        let bodyHtml = '', params = restoredParams || {}, headerLabel = def.label;
 
-        const id = restoredId || generateId();
-        const el = document.createElement('div');
-        el.className = 'node';
-        el.id = `node-${id}`;
-        el.style.left = `${x}px`; el.style.top = `${y}px`;
-
-        let bodyHtml = '';
-        const params = restoredParams || {};
-        
-        let headerLabel = def.label;
-
-        // Custom visuals for Get Variable block
         if (type === 'var_get' && params.varName) {
             headerLabel = params.varName;
-            const safeName = getSafeVarName(params.varName);
-            bodyHtml += `<div style="text-align:center; font-size:16px; color:#3b82f6; font-weight:bold; padding-bottom: 5px;">
-                <span class="live-val-${safeName}">0</span>
-            </div>`;
+            bodyHtml += `<div style="text-align:center; font-size:16px; color:#3b82f6; font-weight:bold; padding-bottom: 5px;"><span class="live-val-${getSafeVarName(params.varName)}">0</span></div>`;
         }
 
         if (def.inPorts && (def.inPorts.length > 0 || def.outPorts.length > 0)) {
@@ -1420,71 +793,43 @@
             }
         }
 
-        if (def.params) {
-            def.params.forEach(p => {
-                const val = params[p.id] !== undefined ? params[p.id] : p.default;
-                params[p.id] = val; 
-                
-                const isDroppable = p.type === 'number' || p.type === 'range';
-                bodyHtml += `<div class="param-group ${isDroppable ? 'param-droppable' : ''}" data-node="${id}" data-param="${p.id}">
-                    <div class="port port-in param-port" data-node="${id}" data-port="${p.id}" style="left: -32px; top: 18px;"></div>
-                    <div class="param-header">
-                        <span>${p.label}</span>
-                        <span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span>
-                    </div>
-                    <div class="param-ui" id="pui-${id}-${p.id}"></div>
-                </div>`;
-            });
-        }
-        
-        if (type === 'hsv_pass') {
-            bodyHtml += `<div class="param-group" style="margin-top: 8px;">
-                <div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div>
-                <div id="swatch-${id}" style="height: 20px; width: 100%; border-radius: 4px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);"></div>
+        if (def.params) def.params.forEach(p => {
+            const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
+            const isDrop = p.type === 'number' || p.type === 'range';
+            bodyHtml += `<div class="param-group ${isDrop ? 'param-droppable' : ''}" data-node="${id}" data-param="${p.id}">
+                <div class="port port-in param-port" data-node="${id}" data-port="${p.id}" style="left: -32px; top: 18px;"></div>
+                <div class="param-header"><span>${p.label}</span><span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span></div>
+                <div class="param-ui" id="pui-${id}-${p.id}"></div>
             </div>`;
-        }
-
-        el.innerHTML = `
-            <div class="node-header">
-                ${headerLabel}
-                <div class="node-actions">
-                    <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
-                    <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button>
-                </div>
-            </div><div class="node-body">${bodyHtml}</div>
-        `;
-
-        nodesContainer.appendChild(el);
-        nodes[id] = { id, type, params, bindings: restoredBindings || {}, domElement: el, outputData: {} };
+        });
         
-        // Initialize dynamic UI elements
+        if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 20px; width: 100%; border-radius: 4px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);"></div></div>`;
+
+        el.innerHTML = `<div class="node-header">${headerLabel}<div class="node-actions">
+            <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
+            <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button></div></div><div class="node-body">${bodyHtml}</div>`;
+
+        nodesContainer.appendChild(el); nodes[id] = { id, type, params, bindings: restoredBindings || {}, domElement: el, outputData: {} };
         if (def.params) def.params.forEach(p => renderParamUI(id, p.id));
         if (type === 'hsv_pass') updateSwatch(id);
         
         const header = el.querySelector('.node-header');
         header.addEventListener('pointerdown', (e) => {
             if (e.target.tagName === 'BUTTON') return;
-            draggedNode = id;
-            const rect = el.getBoundingClientRect();
-            dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top;
-            el.style.zIndex = 5; el.classList.add('drag-active');
+            draggedNode = id; const rect = el.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; el.style.zIndex = 5; el.classList.add('drag-active');
         });
 
         el.querySelectorAll('.port').forEach(portEl => {
             portEl.addEventListener('pointerdown', (e) => {
                 e.stopPropagation();
-                const isOut = portEl.classList.contains('port-out');
-                const portName = portEl.dataset.port;
-
+                const isOut = portEl.classList.contains('port-out'), portName = portEl.dataset.port;
                 if (pendingPort && pendingPort.isOut !== isOut && pendingPort.nodeId !== id) {
                     const fromNode = pendingPort.isOut ? pendingPort.nodeId : id, fromPort = pendingPort.isOut ? pendingPort.port : portName;
                     const toNode = pendingPort.isOut ? id : pendingPort.nodeId, toPort = pendingPort.isOut ? portName : pendingPort.port;
-                    
                     wires = wires.filter(w => !(w.toNode === toNode && w.toPort === toPort)); 
                     wires.push({ id: generateId(), fromNode, fromPort, toNode, toPort });
                     clearPendingPort(); rebuildGraphOrder(); drawWires(); return;
                 }
-
                 let startDragNode = id, startDragPort = portName;
                 if (!isOut) {
                     const existingWireIdx = wires.findIndex(w => w.toNode === id && w.toPort === portName);
@@ -1492,65 +837,38 @@
                         const w = wires[existingWireIdx]; wires.splice(existingWireIdx, 1);
                         startDragNode = w.fromNode; startDragPort = w.fromPort;
                         rebuildGraphOrder(); drawWires();
-                        const outNodeEl = nodes[startDragNode].domElement;
-                        const outPortEl = outNodeEl.querySelector(`.port-out[data-port="${startDragPort}"]`);
+                        const outPortEl = nodes[startDragNode].domElement.querySelector(`.port-out[data-port="${startDragPort}"]`);
                         setPendingPort(startDragNode, startDragPort, true, outPortEl);
                     } else setPendingPort(id, portName, false, portEl);
                 } else setPendingPort(id, portName, true, portEl);
-
-                dragStartPos = { x: e.clientX, y: e.clientY };
-                startWireDrag(startDragNode, startDragPort, e.clientX, e.clientY);
+                dragStartPos = { x: e.clientX, y: e.clientY }; startWireDrag(startDragNode, startDragPort, e.clientX, e.clientY);
             });
         });
-
         rebuildGraphOrder(); drawWires(); return id;
     }
 
     window.updateParam = function(nodeId, paramId, val) {
-        if (nodes[nodeId]) {
-            nodes[nodeId].params[paramId] = val;
-            const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`);
-            if (lbl) lbl.textContent = val;
-            if (nodes[nodeId].type === 'hsv_pass') updateSwatch(nodeId);
-        }
+        if (nodes[nodeId]) { nodes[nodeId].params[paramId] = val; const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`); if (lbl) lbl.textContent = val; if (nodes[nodeId].type === 'hsv_pass') updateSwatch(nodeId); }
     };
 
     window.deleteNode = function(id) {
-        if (!nodes[id]) return;
-        nodes[id].domElement.remove(); 
-        delete nodes[id];
-        
-        const uiBtn = document.getElementById(`uibtn-${id}`);
-        if (uiBtn) uiBtn.remove();
-        
-        wires = wires.filter(w => w.fromNode !== id && w.toNode !== id);
-        rebuildGraphOrder(); drawWires();
+        if (!nodes[id]) return; nodes[id].domElement.remove(); delete nodes[id];
+        const uiBtn = document.getElementById(`uibtn-${id}`); if (uiBtn) uiBtn.remove();
+        wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); rebuildGraphOrder(); drawWires();
     };
 
     window.duplicateNode = function(id) {
         const node = nodes[id]; if (!node) return;
         const newX = parseInt(node.domElement.style.left) + 20, newY = parseInt(node.domElement.style.top) + 20;
-        const clonedParams = JSON.parse(JSON.stringify(node.params));
-        const clonedBindings = JSON.parse(JSON.stringify(node.bindings));
-        createNode(node.type, newX, newY, null, clonedParams, clonedBindings);
+        createNode(node.type, newX, newY, null, JSON.parse(JSON.stringify(node.params)), JSON.parse(JSON.stringify(node.bindings)));
     };
 
     function applyZoom(factor, cx, cy) {
-        const oldZoom = currentZoom;
-        let newZoom = Math.max(0.3, Math.min(currentZoom * factor, 3)); 
-        if (newZoom === oldZoom) return;
-
-        const rect = workspaceViewport.getBoundingClientRect();
-        const wsX = (workspaceViewport.scrollLeft + (cx - rect.left)) / oldZoom;
-        const wsY = (workspaceViewport.scrollTop + (cy - rect.top)) / oldZoom;
-
-        currentZoom = newZoom;
-        workspaceInner.style.transform = `scale(${currentZoom})`;
-        workspaceViewport.scrollLeft = wsX * currentZoom - (cx - rect.left);
-        workspaceViewport.scrollTop = wsY * currentZoom - (cy - rect.top);
-        drawWires();
+        const oldZoom = currentZoom; let newZoom = Math.max(0.3, Math.min(currentZoom * factor, 3)); if (newZoom === oldZoom) return;
+        const rect = workspaceViewport.getBoundingClientRect(), wsX = (workspaceViewport.scrollLeft + (cx - rect.left)) / oldZoom, wsY = (workspaceViewport.scrollTop + (cy - rect.top)) / oldZoom;
+        currentZoom = newZoom; workspaceInner.style.transform = `scale(${currentZoom})`;
+        workspaceViewport.scrollLeft = wsX * currentZoom - (cx - rect.left); workspaceViewport.scrollTop = wsY * currentZoom - (cy - rect.top); drawWires();
     }
-
     workspaceViewport.addEventListener('wheel', (e) => { e.preventDefault(); applyZoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX, e.clientY); }, { passive: false });
 
     function getPortPos(nodeId, portName, isOut) {
@@ -1558,139 +876,66 @@
         const el = node.domElement, portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
         if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
         const portRect = portEl.getBoundingClientRect(), wsRect = workspaceInner.getBoundingClientRect();
-        return {
-            x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2,
-            y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2
-        };
+        return { x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2, y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2 };
     }
 
     function drawWires() {
-        wiresSvg.innerHTML = '';
-        
-        // Handle input disabled states dynamically for wires
-        document.querySelectorAll('.param-input').forEach(el => el.disabled = false);
-
+        wiresSvg.innerHTML = ''; document.querySelectorAll('.param-input').forEach(el => el.disabled = false);
         wires.forEach(w => {
-            const p1 = getPortPos(w.fromNode, w.fromPort, true), p2 = getPortPos(w.toNode, w.toPort, false);
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            const p1 = getPortPos(w.fromNode, w.fromPort, true), p2 = getPortPos(w.toNode, w.toPort, false), path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
             path.setAttribute('class', 'wire'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
             if (selectedWire === w.id) path.style.stroke = '#ef4444'; 
-            
             path.addEventListener('pointerdown', (e) => { e.stopPropagation(); selectedWire = w.id; drawWires(); });
-            path.addEventListener('dblclick', (e) => {
-                e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires();
-            });
+            path.addEventListener('dblclick', (e) => { e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires(); });
             wiresSvg.appendChild(path);
 
             if (selectedWire === w.id) {
-                const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2;
-                const delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY); delBg.setAttribute('r', 14 / currentZoom); delBg.setAttribute('fill', '#ef4444');
-                delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
-
+                const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2, delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY); delBg.setAttribute('r', 14 / currentZoom); delBg.setAttribute('fill', '#ef4444'); delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
                 const delText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                delText.setAttribute('x', midX); delText.setAttribute('y', midY + (4 / currentZoom));
-                delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white'); delText.setAttribute('font-size', `${14/currentZoom}px`); delText.setAttribute('font-weight', 'bold');
-                delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none'; delText.textContent = '✕';
-
-                delBg.addEventListener('pointerdown', (e) => {
-                    e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires();
-                });
+                delText.setAttribute('x', midX); delText.setAttribute('y', midY + (4 / currentZoom)); delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white'); delText.setAttribute('font-size', `${14/currentZoom}px`); delText.setAttribute('font-weight', 'bold'); delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none'; delText.textContent = '✕';
+                delBg.addEventListener('pointerdown', (e) => { e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires(); });
                 wiresSvg.appendChild(delBg); wiresSvg.appendChild(delText);
             }
-            
-            const inputEl = document.getElementById(`input-${w.toNode}-${w.toPort}`);
-            if(inputEl) inputEl.disabled = true;
+            const inputEl = document.getElementById(`input-${w.toNode}-${w.toPort}`); if(inputEl) inputEl.disabled = true;
         });
 
         if (draggingWire) {
-            const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true), wsRect = workspaceInner.getBoundingClientRect();
-            const p2 = { x: (draggingWire.mouseX - wsRect.left) / currentZoom, y: (draggingWire.mouseY - wsRect.top) / currentZoom };
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('class', 'wire active'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
+            const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true), wsRect = workspaceInner.getBoundingClientRect(), p2 = { x: (draggingWire.mouseX - wsRect.left) / currentZoom, y: (draggingWire.mouseY - wsRect.top) / currentZoom };
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('class', 'wire active'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
             wiresSvg.appendChild(path);
         }
     }
 
     function startWireDrag(nodeId, port, mx, my) { draggingWire = { fromNode: nodeId, fromPort: port, mouseX: mx, mouseY: my }; drawWires(); }
     
+    // --- Global Pointer Tracking ---
+    window.addEventListener('pointerdown', (e) => { activePointers.set(e.pointerId, e); });
+    window.addEventListener('blur', () => {
+        activePointers.clear(); lastPinchDist = null; isPanning = false; workspaceViewport.classList.remove('panning'); draggingWire = null; paletteDragItem = null;
+        if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; }
+        drawWires();
+    });
+
     workspaceViewport.addEventListener('pointerdown', (e) => {
         if (e.target === workspaceViewport || e.target === workspaceInner || e.target === wiresSvg) {
             if (selectedWire) { selectedWire = null; drawWires(); }
-            activePointers.set(e.pointerId, e); isPanning = true; workspaceViewport.classList.add('panning');
-            workspaceViewport.setPointerCapture(e.pointerId);
-            panStartX = e.clientX; panStartY = e.clientY;
-            panStartScrollLeft = workspaceViewport.scrollLeft; panStartScrollTop = workspaceViewport.scrollTop;
+            isPanning = true; workspaceViewport.classList.add('panning'); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){}
+            panStartX = e.clientX; panStartY = e.clientY; panStartScrollLeft = workspaceViewport.scrollLeft; panStartScrollTop = workspaceViewport.scrollTop;
         }
     });
 
-    window.addEventListener('pointermove', (e) => {
-        if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, e);
-
-        // Smart Drag / Swipe threshold for the node palette
-        if (paletteDragItem) {
-            const dx = Math.abs(e.clientX - paletteDragItem.startX);
-            const dy = Math.abs(e.clientY - paletteDragItem.startY);
-            
-            if (dy > 10 && dx < dy) {
-                // Vertical scrolling intent - cancel our drag listener
-                paletteDragItem = null;
-            } else if (dx > 10) {
-                // Definite drag intention
-                startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params);
-                paletteDragItem = null;
-            }
-        }
-
-        if (activePointers.size === 2) {
-            const pts = Array.from(activePointers.values());
-            const dist = Math.sqrt(Math.pow(pts[0].clientX - pts[1].clientX, 2) + Math.pow(pts[0].clientY - pts[1].clientY, 2));
-            if (lastPinchDist) applyZoom(dist / lastPinchDist, (pts[0].clientX + pts[1].clientX) / 2, (pts[0].clientY + pts[1].clientY) / 2);
-            lastPinchDist = dist; isPanning = false; 
-        } else if (isPanning && activePointers.size === 1) {
-            workspaceViewport.scrollLeft = panStartScrollLeft - (e.clientX - panStartX); workspaceViewport.scrollTop = panStartScrollTop - (e.clientY - panStartY);
-        }
-        
-        if (draggedNode && nodes[draggedNode]) {
-            const el = nodes[draggedNode].domElement, wsRect = workspaceInner.getBoundingClientRect();
-            el.style.left = `${Math.max(0, (e.clientX - dragOffsetX - wsRect.left) / currentZoom)}px`;
-            el.style.top = `${Math.max(0, (e.clientY - dragOffsetY - wsRect.top) / currentZoom)}px`;
-            
-            // Drag and Drop highlighting for Variables
-            if (nodes[draggedNode].type === 'var_get') {
-                const targetEl = document.elementFromPoint(e.clientX, e.clientY);
-                const droppable = targetEl ? targetEl.closest('.param-droppable') : null;
-                document.querySelectorAll('.param-droppable.drag-over').forEach(el => el.classList.remove('drag-over'));
-                if (droppable) droppable.classList.add('drag-over');
-            }
-
-            drawWires();
-        }
-        
-        if (draggingWire) { draggingWire.mouseX = e.clientX; draggingWire.mouseY = e.clientY; requestAnimationFrame(drawWires); }
-    });
-
-    window.addEventListener('pointerup', (e) => {
+    function handlePointerRelease(e) {
         activePointers.delete(e.pointerId); if (activePointers.size < 2) lastPinchDist = null;
-
-        // If a user just tapped the palette without scrolling or dragging out of bounds
         if (paletteDragItem) {
-            startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params);
-            if (draggedNode && nodes[draggedNode]) {
-                nodes[draggedNode].domElement.style.zIndex = 2; 
-                nodes[draggedNode].domElement.classList.remove('drag-active');
-                draggedNode = null;
-            }
-            if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); workspaceViewport.releasePointerCapture(e.pointerId); }
+            startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params, false); 
+            if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; }
+            if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); try { workspaceViewport.releasePointerCapture(e.pointerId); } catch(err){} }
             paletteDragItem = null;
         }
-
         if (draggingWire) {
-            const activeWire = wiresSvg.querySelector('.wire.active');
-            if(activeWire) activeWire.style.display = 'none';
-            const target = document.elementFromPoint(e.clientX, e.clientY);
-            if(activeWire) activeWire.style.display = '';
-
+            const activeWire = wiresSvg.querySelector('.wire.active'); if(activeWire) activeWire.style.display = 'none';
+            const target = document.elementFromPoint(e.clientX, e.clientY); if(activeWire) activeWire.style.display = '';
             let connected = false;
             if (target && target.classList.contains('port-in')) {
                 const targetNodeId = target.dataset.node, targetPortName = target.dataset.port;
@@ -1700,235 +945,152 @@
                     rebuildGraphOrder(); clearPendingPort(); connected = true;
                 }
             }
-
-            if (!connected) {
-                if (dragStartPos && Math.sqrt(Math.pow(e.clientX - dragStartPos.x, 2) + Math.pow(e.clientY - dragStartPos.y, 2)) > 15) clearPendingPort();
-                else if (!dragStartPos) clearPendingPort();
-            }
+            if (!connected) { if (dragStartPos && Math.sqrt(Math.pow(e.clientX - dragStartPos.x, 2) + Math.pow(e.clientY - dragStartPos.y, 2)) > 15) clearPendingPort(); else if (!dragStartPos) clearPendingPort(); }
             draggingWire = null; drawWires();
         }
-
         if (draggedNode && nodes[draggedNode]) {
-            // Drag and Drop variables handler
             if (nodes[draggedNode].type === 'var_get') {
-                const targetEl = document.elementFromPoint(e.clientX, e.clientY);
-                const droppable = targetEl ? targetEl.closest('.param-droppable') : null;
-                
+                const targetEl = document.elementFromPoint(e.clientX, e.clientY), droppable = targetEl ? targetEl.closest('.param-droppable') : null;
                 if (droppable) {
-                    droppable.classList.remove('drag-over');
-                    const targetNodeId = droppable.dataset.node;
-                    const targetParamId = droppable.dataset.param;
-                    const varName = nodes[draggedNode].params.varName;
-                    
-                    // Bind and render
-                    if (!nodes[targetNodeId].bindings) nodes[targetNodeId].bindings = {};
-                    nodes[targetNodeId].bindings[targetParamId] = varName;
-                    renderParamUI(targetNodeId, targetParamId);
-                    
-                    // Cleanup dragged node & wires safely
-                    deleteNode(draggedNode);
-                    draggedNode = null;
-                    return; 
+                    droppable.classList.remove('drag-over'); const targetNodeId = droppable.dataset.node, targetParamId = droppable.dataset.param;
+                    if (!nodes[targetNodeId].bindings) nodes[targetNodeId].bindings = {}; nodes[targetNodeId].bindings[targetParamId] = nodes[draggedNode].params.varName;
+                    renderParamUI(targetNodeId, targetParamId); deleteNode(draggedNode); draggedNode = null; return; 
                 }
             }
-
-            nodes[draggedNode].domElement.style.zIndex = 2; 
-            nodes[draggedNode].domElement.classList.remove('drag-active');
-            draggedNode = null; 
+            nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; 
         }
-        if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); workspaceViewport.releasePointerCapture(e.pointerId); }
+        if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); try { workspaceViewport.releasePointerCapture(e.pointerId); } catch(err){} }
+    }
+
+    window.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'mouse' && e.buttons === 0 && activePointers.has(e.pointerId)) { handlePointerRelease(e); return; }
+        if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, e);
+
+        if (paletteDragItem) {
+            const dx = Math.abs(e.clientX - paletteDragItem.startX), dy = Math.abs(e.clientY - paletteDragItem.startY);
+            if (dy > 10 && dx < dy) { paletteDragItem = null; } else if (dx > 10) { startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params, true); paletteDragItem = null; }
+        }
+
+        if (activePointers.size === 2) {
+            const pts = Array.from(activePointers.values()), dist = Math.sqrt(Math.pow(pts[0].clientX - pts[1].clientX, 2) + Math.pow(pts[0].clientY - pts[1].clientY, 2));
+            if (lastPinchDist) applyZoom(dist / lastPinchDist, (pts[0].clientX + pts[1].clientX) / 2, (pts[0].clientY + pts[1].clientY) / 2);
+            lastPinchDist = dist; isPanning = false; 
+        } else if (isPanning && activePointers.size === 1) {
+            workspaceViewport.scrollLeft = panStartScrollLeft - (e.clientX - panStartX); workspaceViewport.scrollTop = panStartScrollTop - (e.clientY - panStartY);
+        }
+        
+        if (draggedNode && nodes[draggedNode]) {
+            const el = nodes[draggedNode].domElement, wsRect = workspaceInner.getBoundingClientRect();
+            el.style.left = `${Math.max(0, (e.clientX - dragOffsetX - wsRect.left) / currentZoom)}px`; el.style.top = `${Math.max(0, (e.clientY - dragOffsetY - wsRect.top) / currentZoom)}px`;
+            if (nodes[draggedNode].type === 'var_get') {
+                const targetEl = document.elementFromPoint(e.clientX, e.clientY), droppable = targetEl ? targetEl.closest('.param-droppable') : null;
+                document.querySelectorAll('.param-droppable.drag-over').forEach(el => el.classList.remove('drag-over'));
+                if (droppable) droppable.classList.add('drag-over');
+            }
+            drawWires();
+        }
+        if (draggingWire) { draggingWire.mouseX = e.clientX; draggingWire.mouseY = e.clientY; requestAnimationFrame(drawWires); }
     });
 
-    window.addEventListener('pointercancel', (e) => {
-        paletteDragItem = null;
-        activePointers.delete(e.pointerId); 
-        if (activePointers.size < 2) lastPinchDist = null;
-    });
+    window.addEventListener('pointerup', handlePointerRelease);
+    window.addEventListener('pointercancel', handlePointerRelease);
 
     // --- Init & Save/Load ---
-
     function renderPalette(category) {
-        const pal = document.getElementById('blocks-palette');
-        pal.innerHTML = '';
-        
+        const pal = document.getElementById('blocks-palette'); pal.innerHTML = '';
         if (category === 'Variables') {
-            const createBtn = document.createElement('button');
-            createBtn.className = 'nav-btn';
-            createBtn.style.width = '100%';
-            createBtn.style.marginBottom = '10px';
-            createBtn.style.background = '#3b82f6';
-            createBtn.textContent = '+ Create Variable';
-            createBtn.onclick = () => document.getElementById('var-modal').classList.add('active');
-            pal.appendChild(createBtn);
-            
+            const createBtn = document.createElement('button'); createBtn.className = 'nav-btn'; createBtn.style.width = '100%'; createBtn.style.marginBottom = '10px'; createBtn.style.background = '#3b82f6'; createBtn.textContent = '+ Create Variable';
+            createBtn.onclick = () => document.getElementById('var-modal').classList.add('active'); pal.appendChild(createBtn);
             const setB = document.createElement('div'); setB.className = 'palette-block special'; setB.innerHTML = `<span>Set Variable</span><span>+</span>`;
-            setB.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: 'var_set', params: null, startX: e.clientX, startY: e.clientY }; });
-            pal.appendChild(setB);
-
+            setB.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: 'var_set', params: null, startX: e.clientX, startY: e.clientY }; }); pal.appendChild(setB);
             window.userVarNames.forEach(varName => {
-                const safeName = getSafeVarName(varName);
-                const b = document.createElement('div'); b.className = 'palette-block'; 
-                b.innerHTML = `<div style="display:flex; justify-content:space-between; width:100%;">
-                    <span>${varName}</span> <span class="live-val-${safeName}" style="color:#3b82f6; font-family:monospace;">0</span>
-                </div>`;
-                b.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: 'var_get', params: {varName: varName}, startX: e.clientX, startY: e.clientY }; });
-                pal.appendChild(b);
+                const b = document.createElement('div'); b.className = 'palette-block'; b.innerHTML = `<div style="display:flex; justify-content:space-between; width:100%;"><span>${varName}</span> <span class="live-val-${getSafeVarName(varName)}" style="color:#3b82f6; font-family:monospace;">0</span></div>`;
+                b.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: 'var_get', params: {varName: varName}, startX: e.clientX, startY: e.clientY }; }); pal.appendChild(b);
             });
             return;
         }
-
         Object.keys(NODE_DEFS).forEach(k => {
             if (NODE_DEFS[k].category !== category || NODE_DEFS[k].hideInPalette) return;
-            
             const b = document.createElement('div'); b.className = 'palette-block'; b.innerHTML = `<span>${NODE_DEFS[k].label}</span><span>+</span>`;
-            b.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: k, params: null, startX: e.clientX, startY: e.clientY }; });
-            pal.appendChild(b);
+            b.addEventListener('pointerdown', (e) => { paletteDragItem = { e, type: k, params: null, startX: e.clientX, startY: e.clientY }; }); pal.appendChild(b);
         });
     }
 
-    function startDragFromPaletteActual(e, type, params = null) {
-        if (isMobile()) closeAllPanels();
-        const wsRect = workspaceInner.getBoundingClientRect();
-        const x = (e.clientX - wsRect.left) / currentZoom;
-        const y = (e.clientY - wsRect.top) / currentZoom;
-        
+    function startDragFromPaletteActual(e, type, params = null, capture = true) {
+        if (isMobile()) closeAllPanels(); const wsRect = workspaceInner.getBoundingClientRect(), x = (e.clientX - wsRect.left) / currentZoom, y = (e.clientY - wsRect.top) / currentZoom;
         const newNodeId = createNode(type, x - 100, y - 20, null, params);
-        if (newNodeId) {
-            draggedNode = newNodeId;
-            const el = nodes[newNodeId].domElement;
-            dragOffsetX = 100; dragOffsetY = 20; 
-            el.style.zIndex = 5; el.classList.add('drag-active');
-            activePointers.set(e.pointerId, e);
-            workspaceViewport.setPointerCapture(e.pointerId);
-        }
+        if (newNodeId) { draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 100; dragOffsetY = 20; el.style.zIndex = 5; el.classList.add('drag-active'); if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } }
     }
 
     document.getElementById('cancel-var').onclick = () => document.getElementById('var-modal').classList.remove('active');
     document.getElementById('confirm-var').onclick = () => {
-        const input = document.getElementById('var-name-input');
-        const name = input.value.trim();
+        const input = document.getElementById('var-name-input'), name = input.value.trim();
         if (name && !window.userVarNames.includes(name)) {
-            window.userVarNames.push(name);
-            window.userVars[name] = 0;
-            // Update all select dropdowns
+            window.userVarNames.push(name); window.userVars[name] = 0;
             document.querySelectorAll('select.node-select').forEach(select => {
                 if(select.innerHTML.includes('value=""') || select.closest('.node').id.includes('var_set')) {
-                    const selVal = select.value;
-                    select.innerHTML = window.userVarNames.map(o => `<option value="${o}" ${selVal===o?'selected':''}>${o}</option>`).join('');
-                    select.value = selVal || name;
+                    const selVal = select.value; select.innerHTML = window.userVarNames.map(o => `<option value="${o}" ${selVal===o?'selected':''}>${o}</option>`).join(''); select.value = selVal || name;
                 }
             });
             renderPalette('Variables');
         }
-        input.value = '';
-        document.getElementById('var-modal').classList.remove('active');
+        input.value = ''; document.getElementById('var-modal').classList.remove('active');
     };
 
     function initBuilder() {
-        const palTabs = document.getElementById('palette-tabs');
-        const categories = ['I/O', 'Image Processing', 'Triggers', 'Variables', 'Math'];
-        let activeCategory = 'Image Processing';
-
+        const palTabs = document.getElementById('palette-tabs'), categories = ['I/O', 'Image Processing', 'Triggers', 'Variables', 'Math']; let activeCategory = 'Image Processing';
         categories.forEach(cat => {
-            const btn = document.createElement('div');
-            btn.className = `palette-tab ${cat === activeCategory ? 'active' : ''}`;
-            btn.textContent = cat;
-            btn.onclick = () => {
-                document.querySelectorAll('.palette-tab').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-                activeCategory = cat;
-                renderPalette(cat);
-            };
+            const btn = document.createElement('div'); btn.className = `palette-tab ${cat === activeCategory ? 'active' : ''}`; btn.textContent = cat;
+            btn.onclick = () => { document.querySelectorAll('.palette-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); activeCategory = cat; renderPalette(cat); };
             palTabs.appendChild(btn);
         });
+        renderPalette(activeCategory); loadStorage();
+        const autosaved = localStorage.getItem('vrcam_autosave');
+        if (autosaved) {
+            try { const parsed = JSON.parse(autosaved); if (parsed && parsed.graph && parsed.graph.nodes && parsed.graph.nodes.length > 0) loadGraphFromJSON(parsed.graph, parsed.name); else setupDefaultGraph(); } catch(e) { setupDefaultGraph(); }
+        } else if (Object.keys(nodes).length === 0) setupDefaultGraph();
 
-        renderPalette(activeCategory);
-        loadStorage();
-        if (Object.keys(nodes).length === 0) setupDefaultGraph();
+        setInterval(() => { if (Object.keys(nodes).length > 0) localStorage.setItem('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
     }
 
     function setupDefaultGraph() {
-        document.getElementById('nodes-container').innerHTML = '';
-        document.getElementById('ui-layer').innerHTML = '';
-        nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
-        
-        let cx = 2000;
-        let cy = 2000;
-
-        const cId = createNode('camera', cx - 250, cy - 100);
-        const sId = createNode('screen', cx + 50, cy - 100);
+        document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
+        const cx = 2000, cy = 2000, cId = createNode('camera', cx - 250, cy - 100), sId = createNode('screen', cx + 50, cy - 100);
         wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
-        rebuildGraphOrder(); drawWires(); activeScriptName = "Standard (Default)"; updateLabels();
-        
-        centerWorkspace();
+        rebuildGraphOrder(); drawWires(); activeScriptName = "Standard (Default)"; updateLabels(); centerWorkspace();
     }
 
-    function saveGraphToJSON() {
-        return {
-            userVarNames: window.userVarNames, wires: wires,
-            nodes: Object.values(nodes).map(n => ({ id: n.id, type: n.type, params: n.params, bindings: n.bindings, x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top) }))
-        };
-    }
-
+    function saveGraphToJSON() { return { userVarNames: window.userVarNames, wires: wires, nodes: Object.values(nodes).map(n => ({ id: n.id, type: n.type, params: n.params, bindings: n.bindings, x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top) })) }; }
     function loadGraphFromJSON(data, name) {
-        document.getElementById('nodes-container').innerHTML = '';
-        document.getElementById('ui-layer').innerHTML = '';
-        nodes = {}; wires = []; window.userVars = {};
-        
-        window.userVarNames = data.userVarNames || [];
-        window.userVarNames.forEach(n => window.userVars[n] = 0);
-        
-        data.nodes.forEach(n => createNode(n.type, n.x, n.y, n.id, n.params, n.bindings));
-        wires = data.wires.filter(w => nodes[w.fromNode] && nodes[w.toNode]); 
-        
+        document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVars = {}; window.userVarNames = data.userVarNames || []; window.userVarNames.forEach(n => window.userVars[n] = 0);
+        data.nodes.forEach(n => createNode(n.type, n.x, n.y, n.id, n.params, n.bindings)); wires = data.wires.filter(w => nodes[w.fromNode] && nodes[w.toNode]); 
         activeScriptName = name; rebuildGraphOrder(); drawWires(); updateLabels();
-        
-        const activeTab = document.querySelector('.palette-tab.active');
-        if (activeTab) renderPalette(activeTab.textContent);
-
+        const activeTab = document.querySelector('.palette-tab.active'); if (activeTab) renderPalette(activeTab.textContent);
         const camNode = Object.values(nodes).find(n => n.type === 'camera');
-        if(camNode) {
-            workspaceViewport.scrollLeft = (parseInt(camNode.domElement.style.left) * currentZoom) - (isMobile()? 50 : 100);
-            workspaceViewport.scrollTop = (parseInt(camNode.domElement.style.top) * currentZoom) - 100;
-        }
+        if(camNode) { workspaceViewport.scrollLeft = (parseInt(camNode.domElement.style.left) * currentZoom) - (isMobile()? 50 : 100); workspaceViewport.scrollTop = (parseInt(camNode.domElement.style.top) * currentZoom) - 100; }
         if (isMobile()) closeAllPanels();
     }
 
-    function loadStorage() {
-        try { const raw = localStorage.getItem('vrcam_node_scripts'); if (raw) savedScripts = JSON.parse(raw); } catch(e) {}
-        renderScriptList();
-    }
-
+    function loadStorage() { try { const raw = localStorage.getItem('vrcam_node_scripts'); if (raw) savedScripts = JSON.parse(raw); } catch(e) {} renderScriptList(); }
     function saveStorage() { localStorage.setItem('vrcam_node_scripts', JSON.stringify(savedScripts)); renderScriptList(); }
-
     function renderScriptList() {
-        const list = document.getElementById('saved-scripts-list');
-        list.innerHTML = '';
+        const list = document.getElementById('saved-scripts-list'); list.innerHTML = '';
         savedScripts.forEach((s, idx) => {
-            const item = document.createElement('div'); item.className = 'script-item';
-            item.innerHTML = `<span>${s.name}</span><button class="node-btn delete" onclick="deleteScript(${idx}, event)">✕</button>`;
-            item.onclick = () => loadGraphFromJSON(s.graph, s.name);
-            list.appendChild(item);
+            const item = document.createElement('div'); item.className = 'script-item'; item.innerHTML = `<span>${s.name}</span><button class="node-btn delete" onclick="deleteScript(${idx}, event)">✕</button>`;
+            item.onclick = () => loadGraphFromJSON(s.graph, s.name); list.appendChild(item);
         });
     }
 
     window.deleteScript = function(idx, e) { e.stopPropagation(); savedScripts.splice(idx, 1); saveStorage(); };
-
-    document.getElementById('clear-script-btn').onclick = () => {
-        if(confirm("Clear everything?")) { setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels();}
-    };
+    document.getElementById('clear-script-btn').onclick = () => { if(confirm("Clear everything?")) { localStorage.removeItem('vrcam_autosave'); setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels(); } };
 
     const modal = document.getElementById('save-modal');
-    document.getElementById('save-script-btn').onclick = () => {
-        modal.classList.add('active'); document.getElementById('save-script-name').value = activeScriptName.replace(' (Default)', '');
-    };
+    document.getElementById('save-script-btn').onclick = () => { modal.classList.add('active'); document.getElementById('save-script-name').value = activeScriptName.replace(' (Default)', ''); };
     document.getElementById('cancel-save').onclick = () => modal.classList.remove('active');
     document.getElementById('confirm-save').onclick = () => {
-        const name = document.getElementById('save-script-name').value || 'My Graph';
-        const graph = saveGraphToJSON(), exIdx = savedScripts.findIndex(s => s.name === name);
+        const name = document.getElementById('save-script-name').value || 'My Graph', graph = saveGraphToJSON(), exIdx = savedScripts.findIndex(s => s.name === name);
         if (exIdx >= 0) savedScripts[exIdx].graph = graph; else savedScripts.push({ name, graph });
-        activeScriptName = name; saveStorage(); updateLabels(); modal.classList.remove('active');
-        if (isMobile()) closeAllPanels();
+        activeScriptName = name; saveStorage(); updateLabels(); modal.classList.remove('active'); if (isMobile()) closeAllPanels();
     };
 
     function updateLabels() { document.getElementById('active-script-label').textContent = `Active Script: ${activeScriptName}`; }
@@ -1939,81 +1101,49 @@
             if (stream) stream.getTracks().forEach(t => t.stop());
             stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } }, audio: false });
             videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = stream;
-            
-            document.getElementById('start-camera').disabled = true; document.getElementById('stop-camera').disabled = false;
-            triggerControlsFade();
+            document.getElementById('start-camera').disabled = true; document.getElementById('stop-camera').disabled = false; triggerControlsFade();
         } catch (e) { alert("Camera error: " + e.message); }
     }
-
     function stopCamera() {
-        if (stream) stream.getTracks().forEach(t => t.stop()); stream = null;
-        videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = null;
+        if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = null;
         document.getElementById('start-camera').disabled = false; document.getElementById('stop-camera').disabled = true;
-        // Do NOT stop renderLoopId so logic/math keeps ticking
     }
-
-    document.getElementById('start-camera').onclick = startCamera;
-    document.getElementById('stop-camera').onclick = stopCamera;
+    document.getElementById('start-camera').onclick = startCamera; document.getElementById('stop-camera').onclick = stopCamera;
     document.getElementById('switch-camera').onclick = () => { usingBackCamera = !usingBackCamera; if (stream) startCamera(); };
 
     // --- VR Mode Logic ---
     function updateVRMode() {
         if (vrMode) {
             document.getElementById('video-container').style.display = 'flex'; singleVideo.style.display = 'none';
-            document.getElementById('single-canvas-wrapper').style.display = 'none'; document.getElementById('vr-offset-controls').style.display = 'flex';
-            document.getElementById('toggle-vr').textContent = 'Disable VR View';
+            document.getElementById('single-canvas-wrapper').style.display = 'none'; document.getElementById('vr-offset-controls').style.display = 'flex'; document.getElementById('toggle-vr').textContent = 'Disable VR View';
         } else {
             document.getElementById('video-container').style.display = 'none'; singleVideo.style.display = 'block';
-            document.getElementById('single-canvas-wrapper').style.display = 'block'; document.getElementById('vr-offset-controls').style.display = 'none';
-            document.getElementById('toggle-vr').textContent = 'Enable VR View';
+            document.getElementById('single-canvas-wrapper').style.display = 'block'; document.getElementById('vr-offset-controls').style.display = 'none'; document.getElementById('toggle-vr').textContent = 'Enable VR View';
         }
         updateOffset();
     }
-
     document.getElementById('toggle-vr').onclick = () => { vrMode = !vrMode; updateVRMode(); triggerControlsFade(); };
-
     function updateOffset() {
         const wL = document.getElementById('wrapper-left'), wR = document.getElementById('wrapper-right');
-        if (vrMode) { wL.style.transform = `translateX(-${vrOffset}px)`; wR.style.transform = `translateX(${vrOffset}px)`; } 
-        else { wL.style.transform = 'translateX(0)'; wR.style.transform = 'translateX(0)'; }
+        if (vrMode) { wL.style.transform = `translateX(-${vrOffset}px)`; wR.style.transform = `translateX(${vrOffset}px)`; } else { wL.style.transform = 'translateX(0)'; wR.style.transform = 'translateX(0)'; }
     }
-
     document.getElementById('offset-out').onclick = () => { vrOffset = Math.min(200, vrOffset + 10); updateOffset(); triggerControlsFade(); };
     document.getElementById('offset-in').onclick = () => { vrOffset = Math.max(0, vrOffset - 10); updateOffset(); triggerControlsFade(); };
     document.getElementById('offset-reset').onclick = () => { vrOffset = 0; updateOffset(); triggerControlsFade(); };
 
-    function triggerControlsFade() {
-        camControlsPanel.classList.remove('hidden'); if (hideControlsTimeout) clearTimeout(hideControlsTimeout);
-        hideControlsTimeout = setTimeout(() => { camControlsPanel.classList.add('hidden'); }, 4000);
-    }
-
-    viewCam.addEventListener('click', (e) => {
-        if (!e.target.closest('#controls-panel') && !e.target.closest('button')) {
-            if (camControlsPanel.classList.contains('hidden')) triggerControlsFade();
-            else { camControlsPanel.classList.add('hidden'); clearTimeout(hideControlsTimeout); }
-        }
-    });
+    function triggerControlsFade() { camControlsPanel.classList.remove('hidden'); if (hideControlsTimeout) clearTimeout(hideControlsTimeout); hideControlsTimeout = setTimeout(() => { camControlsPanel.classList.add('hidden'); }, 4000); }
+    viewCam.addEventListener('click', (e) => { if (!e.target.closest('#controls-panel') && !e.target.closest('button')) { if (camControlsPanel.classList.contains('hidden')) triggerControlsFade(); else { camControlsPanel.classList.add('hidden'); clearTimeout(hideControlsTimeout); } } });
 
     // --- Tab Navigation ---
     document.getElementById('nav-camera').onclick = function() {
-        this.classList.add('active'); document.getElementById('nav-builder').classList.remove('active');
-        viewCam.classList.add('active'); document.getElementById('view-builder').classList.remove('active');
-        triggerControlsFade();
+        this.classList.add('active'); document.getElementById('nav-builder').classList.remove('active'); viewCam.classList.add('active'); document.getElementById('view-builder').classList.remove('active'); triggerControlsFade();
     };
-    
     document.getElementById('nav-builder').onclick = function() {
-        this.classList.add('active'); document.getElementById('nav-camera').classList.remove('active');
-        document.getElementById('view-builder').classList.add('active'); viewCam.classList.remove('active');
-        drawWires(); 
+        this.classList.add('active'); document.getElementById('nav-camera').classList.remove('active'); document.getElementById('view-builder').classList.add('active'); viewCam.classList.remove('active'); drawWires(); 
     };
 
     // --- Boot ---
-    initBuilder(); 
-    updateVRMode(); 
-    window.addEventListener('resize', drawWires);
-    
-    // Start Logic Evaluation Immediately (Decoupled from camera)
-    renderLoop(); 
+    initBuilder(); updateVRMode(); window.addEventListener('resize', drawWires); renderLoop(); 
     </script>
 </body>
 </html>
