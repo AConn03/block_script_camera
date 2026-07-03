@@ -63,7 +63,8 @@
         @keyframes dash { to { stroke-dashoffset: -10; } }
 
         .node { position: absolute; background: rgba(20, 20, 20, 0.95); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; min-width: 220px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8); display: flex; flex-direction: column; cursor: default; }
-        .node.error { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.5); }
+        .node.error { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.9); }
+        .node.not-run { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); opacity: 0.7; }
         .node.drag-active { opacity: 0.8; box-shadow: 0 10px 25px rgba(0,0,0,0.9); }
 
         .node-header { padding: 10px 12px; background: rgba(255,255,255,0.1); border-radius: 7px 7px 0 0; cursor: grab; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 14px; touch-action: none; }
@@ -170,6 +171,7 @@
             </div>
 
             <div id="workspace-viewport">
+                <div id="error-toast" style="display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(239, 68, 68, 0.9); color: white; padding: 10px 20px; border-radius: 20px; z-index: 100; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); pointer-events: none; text-align: center; max-width: 80%; border: 1px solid #ffb3b3;"></div>
                 <div id="workspace-inner">
                     <svg id="wires-svg"></svg>
                     <div id="nodes-container"></div>
@@ -323,7 +325,8 @@
         hasCycleError = false; let inDegree = {}, adjList = {};
         Object.keys(nodes).forEach(id => {
             inDegree[id] = 0; adjList[id] = [];
-            nodes[id].domElement.classList.remove('error');
+            nodes[id].domElement.classList.remove('error', 'not-run');
+            nodes[id].domElement.title = "";
             if (nodes[id].type === 'on_start') nodes[id].hasStarted = false;
         });
         wires.forEach(w => { adjList[w.fromNode].push(w.toNode); inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1; });
@@ -336,7 +339,12 @@
         }
         if (count !== Object.keys(nodes).length) {
             hasCycleError = true;
-            Object.keys(nodes).forEach(id => { if (!evalOrder.includes(id)) nodes[id].domElement.classList.add('error'); });
+            Object.keys(nodes).forEach(id => { 
+                if (!evalOrder.includes(id)) {
+                    nodes[id].domElement.classList.add('error'); 
+                    nodes[id].domElement.title = "Cycle Detected";
+                }
+            });
         }
     }
 
@@ -345,7 +353,16 @@
     }
 
     function evaluateFrame() {
-        if (hasCycleError || evalOrder.length === 0) return;
+        const errorToast = document.getElementById('error-toast');
+        if (hasCycleError) { 
+            if(errorToast) { errorToast.style.display = 'block'; errorToast.textContent = 'Graph Error: Cycle detected! Please remove circular connections.'; }
+            return; 
+        }
+        if (evalOrder.length === 0) { 
+            if(errorToast) errorToast.style.display = 'none';
+            return; 
+        }
+
         if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
 
         Object.values(nodes).forEach(node => {
@@ -361,17 +378,61 @@
             }
         });
 
+        let runtimeError = false;
+        let errorNodeId = null;
+        let errorMessage = "";
+        let taintedNodes = new Set();
+
         for (let nodeId of evalOrder) {
             const node = nodes[nodeId], def = NODE_DEFS[node.type]; let inputs = {};
+            let isTainted = false;
+
             if (def.inPorts) def.inPorts.forEach(port => {
                 const wire = wires.find(w => w.toNode === nodeId && w.toPort === port);
-                inputs[port] = wire ? nodes[wire.fromNode].outputData[wire.fromPort] : null;
+                if (wire) {
+                    inputs[port] = nodes[wire.fromNode].outputData[wire.fromPort];
+                    if (taintedNodes.has(wire.fromNode)) isTainted = true;
+                } else {
+                    inputs[port] = null;
+                }
             });
+            
             if (def.params) def.params.forEach(p => {
                 const wire = wires.find(w => w.toNode === nodeId && w.toPort === p.id);
-                if (wire) inputs[p.id] = nodes[wire.fromNode].outputData[wire.fromPort];
+                if (wire) {
+                    inputs[p.id] = nodes[wire.fromNode].outputData[wire.fromPort];
+                    if (taintedNodes.has(wire.fromNode)) isTainted = true;
+                }
             });
-            applyNodeEffect(node, inputs);
+
+            if (isTainted) {
+                taintedNodes.add(nodeId);
+                node.domElement.classList.add('not-run');
+                node.domElement.classList.remove('error');
+                node.domElement.title = "Skipped due to upstream error";
+                continue;
+            }
+
+            try {
+                applyNodeEffect(node, inputs);
+                node.domElement.classList.remove('error', 'not-run');
+                node.domElement.title = "";
+            } catch (err) {
+                runtimeError = true;
+                taintedNodes.add(nodeId);
+                node.domElement.classList.add('error');
+                node.domElement.classList.remove('not-run');
+                node.domElement.title = "Error: " + err.message;
+                if (!errorNodeId) { errorNodeId = nodeId; errorMessage = err.message; }
+                console.error(`Runtime error in node ${node.type} (${nodeId}):`, err);
+            }
+        }
+
+        if (runtimeError && errorToast) {
+            errorToast.style.display = 'block';
+            errorToast.textContent = `Error in '${NODE_DEFS[nodes[errorNodeId].type].label}': ${errorMessage}`;
+        } else if (errorToast) {
+            errorToast.style.display = 'none';
         }
 
         Object.keys(window.userVars).forEach(v => {
