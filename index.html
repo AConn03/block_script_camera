@@ -120,7 +120,6 @@
     </style>
 </head>
 <body>
-
     <nav id="top-nav">
         <button class="nav-btn active" id="nav-camera">Camera View</button>
         <button class="nav-btn" id="nav-builder">Script Builder</button>
@@ -254,7 +253,7 @@
         accumulate: { label: 'Long Exposure', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 2, max: 60, default: 15 }, { id: 'mode', label: 'Blend', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }] },
         blend: { label: 'Blend', category: 'Image Processing', inPorts: ['bg', 'fg'], outPorts: ['out'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' }, { id: 'mix', label: 'Amount', type: 'range', min: 0, max: 100, default: 50 }] },
         get_position: { label: 'Get Position (Mask)', category: 'Image Processing', inPorts: ['video'], outPorts: ['x', 'y', 'found'] },
-        draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{id: 'x', label:'X %', type:'number', default:50}, {id:'y', label:'Y %', type:'number', default:50}] },
+        draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{id: 'x', label:'X', type:'number', default:50}, {id:'y', label:'Y', type:'number', default:50}] },
 
         // Triggers & Logic
         on_start: { label: 'On Start', category: 'Triggers', inPorts: [], outPorts: ['exec'] },
@@ -278,6 +277,7 @@
         math_pi: { label: 'Pi', category: 'Math', inPorts: [], outPorts: ['out'] },
         math_log: { label: 'Log', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:1}] },
         time_sec: { label: 'Time (sec)', category: 'Math', inPorts: [], outPorts: ['val'] },
+        math_pos_convert: { label: 'Pos % <-> px', category: 'Math', inPorts: [], outPorts: ['x', 'y'], params: [{id: 'mode', label: 'Mode', type: 'select', options: ['% to px', 'px to %'], default: '% to px'}, {id: 'x_in', label: 'X In', type: 'number', default: 50}, {id: 'y_in', label: 'Y In', type: 'number', default: 50}] },
 
         // Variables
         var_get: { label: 'Get Variable', category: 'Variables', hideInPalette: true, inPorts: [], outPorts: ['val'] },
@@ -453,6 +453,20 @@
 
         if (type === 'time_sec') { const now = new Date(); const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()); node.outputData['val'] = (now - startOfDay) / 1000; return; }
         
+        if (type === 'math_pos_convert') {
+            const mode = params.mode || '% to px';
+            let xIn = getP('x_in', 50), yIn = getP('y_in', 50);
+            let vw = videoWidth || 1, vh = videoHeight || 1;
+            if (mode === '% to px') {
+                node.outputData['x'] = (xIn / 100) * vw;
+                node.outputData['y'] = (yIn / 100) * vh;
+            } else {
+                node.outputData['x'] = (xIn / vw) * 100;
+                node.outputData['y'] = (yIn / vh) * 100;
+            }
+            return;
+        }
+
         if (type === 'cam_pause') { if (inputs['exec']) window.isCameraPaused = true; node.outputData['exec'] = inputs['exec']; return; }
         if (type === 'cam_resume') { if (inputs['exec']) window.isCameraPaused = false; node.outputData['exec'] = inputs['exec']; return; }
         if (type === 'if_else') { node.outputData['true'] = inputs['exec'] && inputs['cond']; node.outputData['false'] = inputs['exec'] && !inputs['cond']; return; }
@@ -540,7 +554,8 @@
         if (type === 'draw_point') {
             const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
             if (inCanvas) ctx.drawImage(inCanvas, 0, 0);
-            const x = (getP('x', 50) / 100) * w, y = (getP('y', 50) / 100) * h;
+            // This expects exact pixel coordinates (or percent scaled coordinates if you pass them)
+            const x = getP('x', 50), y = getP('y', 50);
             ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke();
             ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.stroke();
@@ -581,6 +596,7 @@
             for(let i=0; i<activeFrames; i++) ctx.drawImage(node.buffer[i], 0, 0);
             ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.bufIndex++; node.outputData['video'] = canvas; return;
         }
+        
         if (type === 'blend') {
             const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null, fgC = inputs['fg'] instanceof HTMLCanvasElement ? inputs['fg'] : null;
             if (!bgC && !fgC) return;
