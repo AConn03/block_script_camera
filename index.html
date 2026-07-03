@@ -51,18 +51,18 @@
         .node.drag-active { opacity: 0.8; box-shadow: 0 10px 25px rgba(0,0,0,0.9); }
         
         .node-error-indicator {
-            position: absolute; left: -12px; top: -12px; width: 24px; height: 24px;
+            position: absolute; left: -35px; top: 12px; width: 26px; height: 26px;
             background: #ef4444; color: white; border-radius: 50%; display: none;
             align-items: center; justify-content: center; font-weight: bold; cursor: pointer;
             box-shadow: 0 2px 8px rgba(0,0,0,0.8); z-index: 10; border: 2px solid #111;
-            touch-action: none; font-size: 14px;
+            touch-action: none; font-size: 16px;
         }
         .node.error .node-error-indicator { display: flex; }
         
         .node-error-tooltip {
-            position: absolute; left: -10px; top: 20px; transform: translateX(-100%);
-            background: #111; border: 1px solid #ef4444; padding: 12px; border-radius: 6px;
-            width: 220px; display: none; z-index: 20; box-shadow: 0 4px 15px rgba(0,0,0,0.9);
+            position: absolute; left: -15px; top: 20px; transform: translateX(-100%);
+            background: #1a1a1a; border: 1px solid #ef4444; padding: 16px; border-radius: 8px;
+            width: 250px; display: none; z-index: 20; box-shadow: 0 8px 25px rgba(0,0,0,0.9);
             pointer-events: auto; white-space: normal; text-align: left;
         }
         .node-error-tooltip.show { display: block; }
@@ -606,26 +606,49 @@
 
         if (type === 'get_position') {
             const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
-            if (!inCanvas) { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; return; }
-            const cw = inCanvas.width || w, ch = inCanvas.height || h;
-            if (cw === 0 || ch === 0) { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; return; }
-            const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
-            const data = inCtx.getImageData(0,0,cw,ch).data;
-            let sumX = 0, sumY = 0, count = 0, idx = 0;
-            for (let y = 0; y < ch; y++) {
-                for (let x = 0; x < cw; x++) {
-                    // Check if pixel is mostly bright/white (red channel > 127) and not fully transparent
-                    if (data[idx] > 127 && data[idx+3] > 0) {
-                        sumX += x; sumY += y; count++;
-                    }
-                    idx += 4;
-                }
+            if (!inCanvas) { 
+                node.outputData['x'] = node.outputData['x'] || 0; 
+                node.outputData['y'] = node.outputData['y'] || 0; 
+                node.outputData['found'] = false; 
+                return; 
             }
-            if (count > 0) {
-                node.outputData['x'] = (sumX / count) / cw * 100;
-                node.outputData['y'] = (sumY / count) / ch * 100;
-                node.outputData['found'] = true;
-            } else { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; }
+            const cw = inCanvas.width || w, ch = inCanvas.height || h;
+            if (cw === 0 || ch === 0) { 
+                node.outputData['x'] = node.outputData['x'] || 0; 
+                node.outputData['y'] = node.outputData['y'] || 0; 
+                node.outputData['found'] = false; 
+                return; 
+            }
+            try {
+                const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
+                const data = inCtx.getImageData(0,0,cw,ch).data;
+                let sumX = 0, sumY = 0, count = 0;
+                
+                // Optimized search stepping every 2 pixels
+                for (let y = 0; y < ch; y += 2) {
+                    let rowOffset = y * cw;
+                    for (let x = 0; x < cw; x += 2) {
+                        let idx = (rowOffset + x) * 4;
+                        // Detect mask: Pixel is reasonably opaque and bright (any color channel)
+                        if (data[idx+3] > 127 && (data[idx] > 127 || data[idx+1] > 127 || data[idx+2] > 127)) {
+                            sumX += x; sumY += y; count++;
+                        }
+                    }
+                }
+                
+                // Ensure sufficient blob size to filter noise
+                if (count > 5) {
+                    node.outputData['x'] = (sumX / count) / cw * 100;
+                    node.outputData['y'] = (sumY / count) / ch * 100;
+                    node.outputData['found'] = true;
+                } else { 
+                    node.outputData['x'] = node.outputData['x'] || 0; 
+                    node.outputData['y'] = node.outputData['y'] || 0; 
+                    node.outputData['found'] = false; 
+                }
+            } catch(e) {
+                throw new Error("Failed to process mask: " + e.message);
+            }
             return;
         }
 
