@@ -10,8 +10,8 @@
         body { background-color: #000; overflow: hidden; height: 100vh; display: flex; flex-direction: column; font-family: Arial, sans-serif; user-select: none; color: white; -webkit-user-select: none; }
 
         /* --- Navigation & Panels --- */
-        #top-nav { display: flex; justify-content: center; background: rgba(0, 0, 0, 0.8); padding: 15px; gap: 15px; z-index: 50; }
-        .nav-btn, button { padding: 10px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; backdrop-filter: blur(5px); transition: background 0.2s; }
+        #top-nav { display: flex; justify-content: center; background: rgba(0, 0, 0, 0.8); padding: 15px; gap: 15px; z-index: 50; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-btn, button { padding: 10px 20px; background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; backdrop-filter: blur(5px); transition: background 0.2s, transform 0.1s; }
         .nav-btn:hover, button:hover { background: rgba(255, 255, 255, 0.3); }
         .nav-btn.active { background: rgba(255, 255, 255, 0.4); box-shadow: inset 0 0 5px rgba(0,0,0,0.5); }
         button:active { transform: scale(0.98); }
@@ -29,95 +29,107 @@
         .effect-canvas { width: 100%; height: 100%; }
 
         #ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; overflow: hidden; }
-        #controls-panel { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.8); padding: 15px; z-index: 10; transition: opacity 0.3s, transform 0.3s; display: flex; flex-direction: column; gap: 10px; }
+        #controls-panel { position: absolute; bottom: 0; left: 0; width: 100%; background: rgba(0, 0, 0, 0.8); padding: 15px; z-index: 10; transition: opacity 0.3s, transform 0.3s; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid rgba(255,255,255,0.1); }
         #controls-panel.hidden { opacity: 0; pointer-events: none; transform: translateY(20px); }
         .controls-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
-        .info-row { display: flex; justify-content: center; gap: 20px; color: white; font-size: 14px; margin-top: 5px; }
+        .info-row { display: flex; justify-content: center; gap: 20px; color: #aaa; font-size: 14px; margin-top: 5px; font-weight: bold; }
 
         /* --- Node Builder --- */
-        #builder-layout { display: flex; width: 100%; height: 100%; background: #000; position: relative; }
-        .sidebar { width: 260px; background: rgba(15, 15, 15, 0.95); border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; padding: 15px; gap: 10px; overflow-y: auto; backdrop-filter: blur(15px); flex-shrink: 0; z-index: 20; transition: transform 0.3s; }
+        #builder-layout { display: flex; width: 100%; height: 100%; background: #0a0a0a; position: relative; }
+        .sidebar { width: 280px; background: rgba(15, 15, 15, 0.95); border-right: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; padding: 15px; gap: 10px; overflow-y: auto; backdrop-filter: blur(15px); flex-shrink: 0; z-index: 20; transition: transform 0.3s; }
         #scripts-panel { border-right: none; border-left: 1px solid rgba(255,255,255,0.1); }
-        .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center; }
+        .panel-title { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #888; margin-bottom: 5px; text-align: center; font-weight: bold; }
 
         .palette-tabs { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 5px; }
-        .palette-tab { background: rgba(255,255,255,0.1); color: #ccc; flex: 1; min-width: 45%; border: 1px solid rgba(255,255,255,0.05); padding: 6px; border-radius: 4px; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s; }
+        .palette-tab { background: rgba(255,255,255,0.1); color: #ccc; flex: 1; min-width: 45%; border: 1px solid rgba(255,255,255,0.05); padding: 8px 6px; border-radius: 4px; font-size: 11px; cursor: pointer; text-align: center; transition: all 0.2s; }
         .palette-tab:hover { background: rgba(255,255,255,0.2); color: #fff; }
         .palette-tab.active { background: #3b82f6; color: #fff; border-color: #3b82f6; font-weight: bold; }
 
-        .palette-block { padding: 10px; border-radius: 5px; background: rgba(255, 255, 255, 0.15); cursor: grab; font-size: 14px; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; touch-action: pan-y; }
+        .palette-block { padding: 12px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.05); cursor: grab; font-size: 13px; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; touch-action: pan-y; }
         .palette-block:active { cursor: grabbing; }
-        .palette-block:hover { background: rgba(255, 255, 255, 0.25); }
+        .palette-block:hover { background: rgba(255, 255, 255, 0.2); }
 
-        #workspace-viewport { flex: 1; position: relative; overflow: hidden; background: #000; cursor: grab; touch-action: none; }
+        #workspace-viewport { flex: 1; position: relative; overflow: hidden; background: #111; cursor: grab; touch-action: none; }
         #workspace-viewport.panning { cursor: grabbing !important; }
-        #workspace-inner { width: 4000px; height: 4000px; position: relative; background: radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 20px 20px; transform-origin: 0 0; }
+        #workspace-inner { width: 4000px; height: 4000px; position: relative; background: radial-gradient(circle, rgba(255,255,255,0.08) 1.5px, transparent 1.5px); background-size: 24px 24px; transform-origin: 0 0; }
 
-        #builder-preview { position: fixed; bottom: 20px; right: 300px; width: 320px; height: 240px; background: rgba(0, 0, 0, 0.8); border: 2px solid rgba(255, 255, 255, 0.2); border-radius: 8px; z-index: 10; pointer-events: none; box-shadow: 0 4px 15px rgba(0,0,0,0.8); overflow: hidden; }
+        #builder-preview { position: fixed; bottom: 20px; right: 300px; width: 320px; height: 240px; background: rgba(0, 0, 0, 0.8); border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 8px; z-index: 10; pointer-events: none; box-shadow: 0 10px 25px rgba(0,0,0,0.8); overflow: hidden; }
         #preview-canvas { width: 100%; height: 100%; object-fit: contain; }
 
         #wires-svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1; }
-        .wire { fill: none; stroke: rgba(255,255,255,0.6); stroke-width: 3; pointer-events: stroke; cursor: pointer; transition: stroke 0.2s; }
-        .wire:hover { stroke: rgba(255,255,255,1); }
-        .wire.active { stroke: #3b82f6; stroke-dasharray: 5,5; animation: dash 1s linear infinite; }
-        @keyframes dash { to { stroke-dashoffset: -10; } }
+        .wire { fill: none; stroke: rgba(255,255,255,0.5); stroke-width: 4; pointer-events: stroke; cursor: pointer; transition: stroke 0.2s; stroke-linecap: round; }
+        .wire:hover { stroke: rgba(255,255,255,0.9); stroke-width: 6; }
+        .wire.active { stroke: #3b82f6; stroke-dasharray: 6,6; animation: dash 1s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -12; } }
 
-        .node { position: absolute; background: rgba(20, 20, 20, 0.95); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; min-width: 220px; z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.8); display: flex; flex-direction: column; cursor: default; }
-        .node.error { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.9); }
-        .node.not-run { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.4); opacity: 0.7; }
-        .node.drag-active { opacity: 0.8; box-shadow: 0 10px 25px rgba(0,0,0,0.9); }
+        .node { position: absolute; background: rgba(25, 25, 25, 0.95); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; min-width: 240px; z-index: 2; box-shadow: 0 6px 15px rgba(0,0,0,0.6); display: flex; flex-direction: column; cursor: default; transition: box-shadow 0.2s; }
+        .node.drag-active { opacity: 0.9; box-shadow: 0 15px 35px rgba(0,0,0,0.9); border-color: rgba(255,255,255,0.4); }
+        
+        /* Error Visualization Classes */
+        .node.error { border-color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.7); }
+        .node.not-run { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
+        .node.not-run::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(239, 68, 68, 0.15); border-radius: 10px; pointer-events: none; z-index: 10; }
+        
+        .error-icon { position: absolute; left: -35px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; background: #ef4444; color: white; border-radius: 50%; display: flex; justify-content: center; align-items: center; font-weight: bold; cursor: pointer; z-index: 20; box-shadow: 0 0 10px rgba(239, 68, 68, 0.8); animation: pulse 1.5s infinite; border: 2px solid white; font-size: 16px; pointer-events: auto; }
+        @keyframes pulse { 0% { transform: translateY(-50%) scale(1); box-shadow: 0 0 5px rgba(239, 68, 68, 0.5); } 50% { transform: translateY(-50%) scale(1.15); box-shadow: 0 0 15px rgba(239, 68, 68, 1); } 100% { transform: translateY(-50%) scale(1); box-shadow: 0 0 5px rgba(239, 68, 68, 0.5); } }
 
-        .node-header { padding: 10px 12px; background: rgba(255,255,255,0.1); border-radius: 7px 7px 0 0; cursor: grab; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 14px; touch-action: none; }
+        .node-header { padding: 12px 15px; background: rgba(255,255,255,0.08); border-radius: 9px 9px 0 0; cursor: grab; display: flex; justify-content: space-between; align-items: center; font-weight: bold; font-size: 14px; touch-action: none; border-bottom: 1px solid rgba(255,255,255,0.05); }
         .node-header:active { cursor: grabbing; }
-        .node-actions { display: flex; gap: 5px; }
-        .node-btn { background: transparent; color: #aaa; border: none; padding: 2px 6px; min-width: auto; font-size: 12px; cursor: pointer; font-weight: bold; }
-        .node-btn:hover { background: rgba(255,255,255,0.15); color: #fff; }
-        .node-btn.delete:hover { background: #ef4444; color: #fff; }
+        .node-actions { display: flex; gap: 6px; }
+        .node-btn { background: rgba(0,0,0,0.3); color: #ccc; border: 1px solid transparent; border-radius: 4px; padding: 4px 8px; min-width: auto; font-size: 12px; cursor: pointer; font-weight: bold; }
+        .node-btn:hover { background: rgba(255,255,255,0.2); color: #fff; border-color: rgba(255,255,255,0.3); }
+        .node-btn.delete:hover { background: #ef4444; color: #fff; border-color: #ef4444; }
 
-        .node-body { padding: 12px; display: flex; flex-direction: column; gap: 12px; font-size: 12px; }
-        .port-row { display: flex; justify-content: space-between; position: relative; align-items: center; min-height: 20px;}
-        .port-label { color: #bbb; font-weight: bold;}
-        .port { width: 16px; height: 16px; background: #fff; border-radius: 50%; position: absolute; top: 50%; transform: translateY(-50%); cursor: crosshair; border: 2px solid #333; z-index: 3; transition: transform 0.1s, background 0.2s; touch-action: none; }
+        .node-body { padding: 15px; display: flex; flex-direction: column; gap: 14px; font-size: 13px; }
+        .port-row { display: flex; justify-content: space-between; position: relative; align-items: center; min-height: 22px;}
+        .port-label { color: #ccc; font-weight: bold; font-size: 12px; }
+        .port { width: 16px; height: 16px; background: #ddd; border-radius: 50%; position: absolute; top: 50%; transform: translateY(-50%); cursor: crosshair; border: 3px solid #222; z-index: 3; transition: transform 0.1s, background 0.2s; touch-action: none; box-shadow: 0 2px 4px rgba(0,0,0,0.5); }
         .port:hover { transform: translateY(-50%) scale(1.3); background: #3b82f6;}
-        .port.pending { background: #3b82f6; transform: translateY(-50%) scale(1.4); box-shadow: 0 0 12px #3b82f6; }
-        .port-in { left: -20px; } .port-out { right: -20px; }
+        .port.pending { background: #3b82f6; transform: translateY(-50%) scale(1.4); box-shadow: 0 0 12px #3b82f6; border-color: #fff; }
+        .port-in { left: -23px; } .port-out { right: -23px; }
 
-        .param-group { display: flex; flex-direction: column; gap: 4px; position: relative; border-radius: 4px; padding: 2px; }
-        .param-header { display: flex; justify-content: space-between; align-items: center; }
-        .param-ui { min-height: 24px; display: flex; flex-direction: column; justify-content: center;}
-        .param-droppable.drag-over { background: rgba(59, 130, 246, 0.3); box-shadow: 0 0 5px #3b82f6; }
+        .param-group { display: flex; flex-direction: column; gap: 6px; position: relative; border-radius: 4px; padding: 2px; }
+        .param-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #aaa; text-transform: uppercase; letter-spacing: 0.5px;}
+        .param-ui { min-height: 26px; display: flex; flex-direction: column; justify-content: center;}
+        .param-droppable.drag-over { background: rgba(59, 130, 246, 0.2); box-shadow: 0 0 0 2px #3b82f6 inset; border-radius: 6px; }
 
-        .var-pill { background: #3b82f6; color: white; border-radius: 12px; padding: 4px 10px; cursor: grab; text-align: center; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between; box-shadow: 0 2px 5px rgba(0,0,0,0.5); touch-action: none; }
-        .var-pill:active { cursor: grabbing; }
-        .var-pill span { background: rgba(0,0,0,0.3); padding: 0 6px; border-radius: 8px; margin-left: 8px; font-family: monospace;}
+        .var-pill { background: linear-gradient(180deg, #3b82f6, #2563eb); color: white; border-radius: 12px; padding: 5px 12px; cursor: grab; text-align: center; font-weight: bold; font-size: 13px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 3px 6px rgba(0,0,0,0.5); touch-action: none; border: 1px solid rgba(255,255,255,0.2); }
+        .var-pill:active { cursor: grabbing; transform: scale(0.98); }
+        .var-pill span { background: rgba(0,0,0,0.4); padding: 2px 8px; border-radius: 10px; margin-left: 8px; font-family: monospace; font-size: 11px; }
 
         input[type="range"], input[type="number"], input[type="text"] { width: 100%; cursor: pointer; }
         input.param-input:disabled { opacity: 0.3; cursor: not-allowed; }
-        select.node-select { padding: 6px; background: rgba(255,255,255,0.1); color: white; border: none; border-radius: 4px; width: 100%; }
-        select.node-select option { background: #333; }
+        select.node-select { padding: 6px; background: rgba(0,0,0,0.3); color: white; border: 1px solid rgba(255,255,255,0.2); border-radius: 4px; width: 100%; outline: none; }
+        select.node-select:focus { border-color: #3b82f6; }
+        select.node-select option { background: #222; }
 
-        .script-item { padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 5px; }
-        .script-item:hover { background: rgba(255,255,255,0.2); }
+        .script-item { padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; margin-bottom: 8px; transition: background 0.2s; font-size: 14px; }
+        .script-item:hover { background: rgba(255,255,255,0.15); }
+
+        /* Toast Alert */
+        #toast-alert { position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(59, 130, 246, 0.9); color: white; padding: 12px 24px; border-radius: 20px; z-index: 100; font-weight: bold; box-shadow: 0 8px 20px rgba(0,0,0,0.6); pointer-events: none; text-align: center; max-width: 80%; border: 1px solid #93c5fd; display: none; opacity: 0; transition: opacity 0.3s; }
+        #toast-alert.show { display: block; opacity: 1; }
 
         /* --- Mobile Overrides & Modals --- */
         #mobile-bottom-bar, #sidebar-overlay { display: none; }
         @media (max-width: 768px) {
-            .sidebar { position: absolute; top: 0; bottom: 0; height: calc(100vh - 60px); box-shadow: 0 0 20px rgba(0,0,0,0.8); }
+            .sidebar { position: absolute; top: 0; bottom: 0; height: calc(100vh - 60px); box-shadow: 0 0 25px rgba(0,0,0,0.9); z-index: 30; }
             #palette-panel { left: 0; transform: translateX(-100%); }
             #palette-panel.open { transform: translateX(0); }
             #scripts-panel { right: 0; transform: translateX(100%); }
             #scripts-panel.open { transform: translateX(0); }
-            #sidebar-overlay { display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 15; opacity: 0; pointer-events: none; transition: opacity 0.3s; }
+            #sidebar-overlay { display: block; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 25; opacity: 0; pointer-events: none; transition: opacity 0.3s; backdrop-filter: blur(2px); }
             #sidebar-overlay.active { opacity: 1; pointer-events: auto; }
-            #mobile-bottom-bar { display: flex; position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); gap: 10px; z-index: 10; }
-            #mobile-bottom-bar button { font-size: 14px; padding: 10px 15px; border-radius: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); background: rgba(30,30,30,0.9); border: 1px solid #444; }
-            #builder-preview { width: 140px; height: 105px; bottom: 60px; right: 10px; opacity: 0.8; }
+            #mobile-bottom-bar { display: flex; position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); gap: 15px; z-index: 10; width: 90%; justify-content: center; }
+            #mobile-bottom-bar button { font-size: 15px; padding: 12px 20px; border-radius: 25px; box-shadow: 0 6px 12px rgba(0,0,0,0.8); background: rgba(30,30,30,0.95); border: 1px solid #555; flex: 1; max-width: 160px; font-weight: bold; }
+            #builder-preview { width: 140px; height: 105px; bottom: 80px; right: 10px; opacity: 0.85; }
         }
 
-        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 1000; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
         .modal-overlay.active { opacity: 1; pointer-events: auto; }
-        .modal { background: #111; padding: 20px; border-radius: 8px; width: 90%; max-width: 350px; border: 1px solid rgba(255,255,255,0.2); }
-        .modal input { width: 100%; padding: 10px; border-radius: 4px; border: 1px solid #444; background: #222; color: white; margin: 15px 0; }
+        .modal { background: #1a1a1a; padding: 25px; border-radius: 12px; width: 90%; max-width: 400px; border: 1px solid rgba(255,255,255,0.15); box-shadow: 0 15px 40px rgba(0,0,0,0.8); }
+        .modal input { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #444; background: #000; color: white; margin: 15px 0; font-size: 15px; outline: none; transition: border 0.2s; }
+        .modal input:focus { border-color: #3b82f6; }
     </style>
 </head>
 <body>
@@ -166,12 +178,12 @@
             <div class="sidebar" id="palette-panel">
                 <div class="panel-title">Categories</div>
                 <div id="palette-tabs" class="palette-tabs"></div>
-                <hr style="border-color: rgba(255,255,255,0.1); margin: 5px 0 10px 0;">
-                <div id="blocks-palette" style="display: flex; flex-direction: column; gap: 5px; overflow-y: auto; flex: 1; padding-bottom: 20px;"></div>
+                <hr style="border-color: rgba(255,255,255,0.05); margin: 5px 0 10px 0;">
+                <div id="blocks-palette" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; padding-bottom: 20px;"></div>
             </div>
 
             <div id="workspace-viewport">
-                <div id="error-toast" style="display: none; position: absolute; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(239, 68, 68, 0.9); color: white; padding: 10px 20px; border-radius: 20px; z-index: 100; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.5); pointer-events: none; text-align: center; max-width: 80%; border: 1px solid #ffb3b3;"></div>
+                <div id="toast-alert"></div>
                 <div id="workspace-inner">
                     <svg id="wires-svg"></svg>
                     <div id="nodes-container"></div>
@@ -187,35 +199,66 @@
 
             <div class="sidebar" id="scripts-panel">
                 <div class="panel-title">Scripts</div>
-                <button id="save-script-btn" style="width: 100%;">Save Graph</button>
-                <button id="clear-script-btn" style="width: 100%; margin-top: 5px; background: rgba(239, 68, 68, 0.2);">Clear Workspace</button>
-                <hr style="border-color: rgba(255,255,255,0.1); margin: 10px 0;">
+                <button id="save-script-btn" style="width: 100%; background: #3b82f6;">Save Graph</button>
+                <button id="clear-script-btn" style="width: 100%; margin-top: 10px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4);">Clear Workspace</button>
+                <hr style="border-color: rgba(255,255,255,0.05); margin: 15px 0;">
                 <div id="saved-scripts-list" style="display: flex; flex-direction: column; gap: 0;"></div>
-                <div style="font-size: 11px; color: #888; text-align: center; margin-top: auto; padding-top: 20px;">
+                <div style="font-size: 11px; color: #666; text-align: center; margin-top: auto; padding-top: 20px;">
                     Scroll/pinch to zoom. Drag an output port to an input to connect.
                 </div>
             </div>
         </div>
     </div>
 
+    <!-- Modals -->
     <div class="modal-overlay" id="save-modal">
         <div class="modal">
-            <h3 style="text-align: center;">Save Script</h3>
+            <h3 style="text-align: center; margin-bottom: 10px;">Save Script</h3>
             <input type="text" id="save-script-name" placeholder="Enter script name..." autocomplete="off">
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
                 <button id="cancel-save">Cancel</button>
-                <button id="confirm-save" style="background: rgba(255,255,255,0.4);">Save</button>
+                <button id="confirm-save" style="background: #3b82f6;">Save</button>
             </div>
         </div>
     </div>
     
     <div class="modal-overlay" id="var-modal">
         <div class="modal">
-            <h3 style="text-align: center;">Create Variable</h3>
+            <h3 style="text-align: center; margin-bottom: 10px;">Create Variable</h3>
             <input type="text" id="var-name-input" placeholder="Variable name..." autocomplete="off">
-            <div style="display: flex; justify-content: flex-end; gap: 10px;">
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
                 <button id="cancel-var">Cancel</button>
                 <button id="confirm-var" style="background: #3b82f6;">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="error-info-modal">
+        <div class="modal">
+            <h3 style="color: #ef4444; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 15px; margin-bottom: 15px; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 24px;">⚠️</span> Node Error
+            </h3>
+            <div style="font-size: 14px; margin-bottom: 20px; line-height: 1.5;">
+                <strong style="color: #888;">System Output:</strong><br>
+                <span id="error-msg-text" style="color: #ffb3b3; font-family: monospace;"></span>
+            </div>
+            <div style="font-size: 14px; margin-bottom: 25px; background: rgba(59, 130, 246, 0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6; line-height: 1.5;">
+                <strong style="color: #93c5fd;">💡 Suggested Fix:</strong><br>
+                <span id="error-sugg-text" style="color: #e2e8f0;"></span>
+            </div>
+            <div style="display: flex; justify-content: flex-end;">
+                <button id="close-error-modal" style="background: #333;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="confirm-action-modal">
+        <div class="modal">
+            <h3 style="text-align: center; color: #ef4444; margin-bottom: 15px;">Clear Workspace?</h3>
+            <p style="text-align: center; color: #ccc; margin-bottom: 25px; font-size: 14px;">This will remove all nodes and wires. Unsaved progress will be lost.</p>
+            <div style="display: flex; justify-content: center; gap: 15px;">
+                <button id="cancel-confirm-action" style="flex: 1;">Cancel</button>
+                <button id="execute-confirm-action" style="background: #ef4444; flex: 1;">Clear</button>
             </div>
         </div>
     </div>
@@ -295,6 +338,8 @@
     let evalOrder = [], hasCycleError = false;
     let stream = null, usingBackCamera = true, vrMode = false, vrOffset = 0, renderLoopId = null, hideControlsTimeout = null;
     let videoWidth = 640, videoHeight = 480;
+    let taintedNodes = new Set();
+    let errorDetails = {}; // Stores error data per node
 
     // --- DOM Elements ---
     const workspaceViewport = document.getElementById('workspace-viewport');
@@ -306,6 +351,7 @@
     const previewCanvas = document.getElementById('preview-canvas');
     const camControlsPanel = document.getElementById('controls-panel'), viewCam = document.getElementById('view-camera');
     const palettePanel = document.getElementById('palette-panel'), scriptsPanel = document.getElementById('scripts-panel'), sidebarOverlay = document.getElementById('sidebar-overlay');
+    const toastAlert = document.getElementById('toast-alert');
 
     // --- Helpers ---
     function isMobile() { return window.innerWidth <= 768; }
@@ -315,6 +361,15 @@
         workspaceViewport.scrollLeft = 2000 * currentZoom - (workspaceViewport.clientWidth / 2);
         workspaceViewport.scrollTop = 2000 * currentZoom - (workspaceViewport.clientHeight / 2);
     }
+    
+    function showToast(msg, isError = false) {
+        toastAlert.classList.add('show');
+        toastAlert.style.background = isError ? 'rgba(239, 68, 68, 0.95)' : 'rgba(59, 130, 246, 0.95)';
+        toastAlert.style.borderColor = isError ? '#ffb3b3' : '#93c5fd';
+        toastAlert.textContent = msg;
+        setTimeout(() => { toastAlert.classList.remove('show'); }, 4000);
+    }
+
     document.getElementById('btn-toggle-palette').onclick = () => { palettePanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
     document.getElementById('btn-toggle-scripts').onclick = () => { scriptsPanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
     sidebarOverlay.onclick = closeAllPanels;
@@ -327,6 +382,7 @@
             inDegree[id] = 0; adjList[id] = [];
             nodes[id].domElement.classList.remove('error', 'not-run');
             nodes[id].domElement.title = "";
+            hideErrorIcon(id);
             if (nodes[id].type === 'on_start') nodes[id].hasStarted = false;
         });
         wires.forEach(w => { adjList[w.fromNode].push(w.toNode); inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1; });
@@ -351,23 +407,51 @@
     function createInternalCanvas(width, height) {
         const c = document.createElement('canvas'); c.width = width; c.height = height; return c;
     }
+    
+    function showErrorIcon(nodeId, msg, suggestion) {
+        const node = nodes[nodeId];
+        if (!node) return;
+        let icon = node.domElement.querySelector('.error-icon');
+        if (!icon) {
+            icon = document.createElement('div');
+            icon.className = 'error-icon';
+            icon.textContent = '!';
+            icon.title = "Click for error details";
+            icon.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                showErrorModal(node.type, msg, suggestion);
+            });
+            node.domElement.appendChild(icon);
+        }
+    }
+    
+    function hideErrorIcon(nodeId) {
+        const node = nodes[nodeId];
+        if (!node) return;
+        const icon = node.domElement.querySelector('.error-icon');
+        if (icon) icon.remove();
+    }
+    
+    function showErrorModal(nodeType, msg, suggestion) {
+        document.getElementById('error-info-modal').classList.add('active');
+        document.getElementById('error-msg-text').textContent = msg;
+        document.getElementById('error-sugg-text').textContent = suggestion;
+    }
+    document.getElementById('close-error-modal').onclick = () => document.getElementById('error-info-modal').classList.remove('active');
 
     function evaluateFrame() {
-        const errorToast = document.getElementById('error-toast');
         if (hasCycleError) { 
-            if(errorToast) { errorToast.style.display = 'block'; errorToast.textContent = 'Graph Error: Cycle detected! Please remove circular connections.'; }
+            showToast('Graph Error: Cycle detected! Please remove circular connections.', true);
             return; 
         }
-        if (evalOrder.length === 0) { 
-            if(errorToast) errorToast.style.display = 'none';
-            return; 
-        }
+        if (evalOrder.length === 0) return; 
 
         if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
 
         Object.values(nodes).forEach(node => {
             if (!node.outputData) node.outputData = {};
             const def = NODE_DEFS[node.type];
+            // Ensure canvases are prepared for image processing
             if ((def.category === 'Image Processing' && node.type !== 'get_position') || node.type === 'camera' || node.type === 'capture_frame') {
                 if (!node.canvas || node.canvas.width !== videoWidth) {
                     node.canvas = createInternalCanvas(videoWidth, videoHeight);
@@ -378,10 +462,7 @@
             }
         });
 
-        let runtimeError = false;
-        let errorNodeId = null;
-        let errorMessage = "";
-        let taintedNodes = new Set();
+        taintedNodes.clear();
 
         for (let nodeId of evalOrder) {
             const node = nodes[nodeId], def = NODE_DEFS[node.type]; let inputs = {};
@@ -405,34 +486,50 @@
                 }
             });
 
+            // If an upstream node crashed, skip running this one so it safely holds its last working data state.
             if (isTainted) {
                 taintedNodes.add(nodeId);
                 node.domElement.classList.add('not-run');
                 node.domElement.classList.remove('error');
-                node.domElement.title = "Skipped due to upstream error";
-                continue;
+                hideErrorIcon(nodeId);
+                continue; 
             }
 
             try {
+                // Strict validation to enforce predictable behaviors and trigger our catch
+                if (def.category === 'Image Processing' && inputs['video'] !== null && inputs['video'] !== undefined) {
+                    if (!(inputs['video'] instanceof HTMLCanvasElement)) {
+                        throw new Error(`Invalid type received on 'video' port. Expected Image Stream, got ${typeof inputs['video']}.`);
+                    }
+                }
+
                 applyNodeEffect(node, inputs);
+                
+                // Clear error visualization on success
                 node.domElement.classList.remove('error', 'not-run');
-                node.domElement.title = "";
+                hideErrorIcon(nodeId);
+
             } catch (err) {
-                runtimeError = true;
                 taintedNodes.add(nodeId);
                 node.domElement.classList.add('error');
                 node.domElement.classList.remove('not-run');
-                node.domElement.title = "Error: " + err.message;
-                if (!errorNodeId) { errorNodeId = nodeId; errorMessage = err.message; }
-                console.error(`Runtime error in node ${node.type} (${nodeId}):`, err);
-            }
-        }
+                
+                // Formulate intelligent suggestion
+                let suggestion = "Check the connections leading to this node. Ensure you are providing the correct data type.";
+                if (err.message.includes("Image Stream")) {
+                    suggestion = "You are feeding a number or logic signal into an image port. Connect a video/image line instead.";
+                } else if (err.message.includes("undefined") || err.message.includes("null")) {
+                    suggestion = "An input port requires data to run but is disconnected.";
+                } else if (node.type === 'math_div') {
+                    suggestion = "Division by zero is not allowed. Change the divisor input.";
+                }
 
-        if (runtimeError && errorToast) {
-            errorToast.style.display = 'block';
-            errorToast.textContent = `Error in '${NODE_DEFS[nodes[errorNodeId].type].label}': ${errorMessage}`;
-        } else if (errorToast) {
-            errorToast.style.display = 'none';
+                showErrorIcon(nodeId, err.message, suggestion);
+                console.error(`Runtime error in node ${node.type} (${nodeId}):`, err);
+                
+                // IMPORTANT: We DO NOT clear node.outputData here.
+                // This ensures it literally acts as the "last known working part" up until the error!
+            }
         }
 
         Object.keys(window.userVars).forEach(v => {
@@ -485,6 +582,8 @@
             node.outputData['video'] = canvas; return;
         } 
         if (type === 'screen') {
+            // Note: If screen is marked not-run due to an error, it is skipped in evaluateFrame, 
+            // so this won't run, resulting in the desired screen "freeze" at last valid frame!
             const renderTarget = inputs['render'] instanceof HTMLCanvasElement ? inputs['render'] : null;
             if (stream) renderFinalOutput(renderTarget);
             return;
@@ -498,7 +597,10 @@
                 case 'math_add': node.outputData['out'] = a + b; break;
                 case 'math_sub': node.outputData['out'] = a - b; break;
                 case 'math_mult': node.outputData['out'] = a * b; break;
-                case 'math_div': node.outputData['out'] = b !== 0 ? a / b : 0; break;
+                case 'math_div': 
+                    if (b === 0) throw new Error("Math Error: Division by zero.");
+                    node.outputData['out'] = a / b; 
+                    break;
                 case 'math_sin': node.outputData['out'] = Math.sin(a); break;
                 case 'math_cos': node.outputData['out'] = Math.cos(a); break;
                 case 'math_tan': node.outputData['out'] = Math.tan(a); break;
@@ -597,25 +699,45 @@
 
         if (type === 'get_position') {
             const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
-            if (!inCanvas) { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; return; }
+            if (!inCanvas) { 
+                node.outputData['x'] = 50; node.outputData['y'] = 50; node.outputData['found'] = false; 
+                return; 
+            }
+            
+            const wIn = inCanvas.width || 1;
+            const hIn = inCanvas.height || 1;
             const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
-            const data = inCtx.getImageData(0,0,w,h).data;
+            const data = inCtx.getImageData(0,0,wIn,hIn).data;
+            
             let sumX = 0, sumY = 0, count = 0;
+            
+            // Loop through all pixels. Assuming mask is mostly black/transparent with bright objects.
             for (let i = 0; i < data.length; i += 4) {
-                if (data[i+3] > 0 && (data[i] > 0 || data[i+1] > 0 || data[i+2] > 0)) {
-                    sumX += (i / 4) % w; sumY += Math.floor((i / 4) / w); count++;
+                // Check if the pixel has color (e.g. Red > 127, indicating mask presence) and is not totally transparent
+                if (data[i+3] > 0 && (data[i] > 127 || data[i+1] > 127 || data[i+2] > 127)) {
+                    const pixelIndex = i / 4;
+                    sumX += pixelIndex % wIn;
+                    sumY += Math.floor(pixelIndex / wIn);
+                    count++;
                 }
             }
+            
             if (count > 0) {
-                node.outputData['x'] = (sumX / count) / w * 100; node.outputData['y'] = (sumY / count) / h * 100; node.outputData['found'] = true;
-            } else { node.outputData['x'] = 0; node.outputData['y'] = 0; node.outputData['found'] = false; }
+                // Calculate average and convert to 0-100% space format
+                node.outputData['x'] = (sumX / count) / wIn * 100; 
+                node.outputData['y'] = (sumY / count) / hIn * 100; 
+                node.outputData['found'] = true;
+            } else { 
+                node.outputData['x'] = 50; 
+                node.outputData['y'] = 50; 
+                node.outputData['found'] = false; 
+            }
             return;
         }
 
         if (type === 'draw_point') {
             const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
             if (inCanvas) ctx.drawImage(inCanvas, 0, 0);
-            // This expects exact pixel coordinates (or percent scaled coordinates if you pass them)
             const x = getP('x', 50), y = getP('y', 50);
             ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke();
@@ -837,7 +959,7 @@
         } else {
             const val = node.params[paramId]; let inputHtml = '';
             if (pDef.type === 'range') inputHtml = `<input type="range" class="param-input" id="input-${nodeId}-${paramId}" min="${pDef.min}" max="${pDef.max}" value="${val}" oninput="updateParam('${nodeId}','${paramId}',this.value)">`;
-            else if (pDef.type === 'number' || pDef.type === 'text') inputHtml = `<input type="${pDef.type}" class="param-input" id="input-${nodeId}-${paramId}" value="${val}" style="width: 100%; padding: 4px; background: #222; border: 1px solid #444; border-radius: 4px; color: white;" ${pDef.type==='number'?'onchange':'oninput'}="updateParam('${nodeId}','${paramId}',this.value)">`;
+            else if (pDef.type === 'number' || pDef.type === 'text') inputHtml = `<input type="${pDef.type}" class="param-input" id="input-${nodeId}-${paramId}" value="${val}" style="width: 100%; padding: 6px; background: #000; border: 1px solid #444; border-radius: 4px; color: white;" ${pDef.type==='number'?'onchange':'oninput'}="updateParam('${nodeId}','${paramId}',this.value)">`;
             else if (pDef.type === 'select' || pDef.type === 'var_select') {
                 let opts = pDef.type === 'var_select' ? window.userVarNames : pDef.options;
                 let optHtml = opts.map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('');
@@ -880,7 +1002,7 @@
             </div>`;
         });
         
-        if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 20px; width: 100%; border-radius: 4px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);"></div></div>`;
+        if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 24px; width: 100%; border-radius: 6px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);"></div></div>`;
 
         el.innerHTML = `<div class="node-header">${headerLabel}<div class="node-actions">
             <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
@@ -932,7 +1054,7 @@
         if (!nodes[id]) return; nodes[id].domElement.remove(); delete nodes[id];
         const uiBtn = document.getElementById(`uibtn-${id}`); if (uiBtn) uiBtn.remove();
         wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); rebuildGraphOrder(); drawWires();
-    };
+    }
 
     window.duplicateNode = function(id) {
         const node = nodes[id]; if (!node) return;
@@ -960,7 +1082,7 @@
         wiresSvg.innerHTML = ''; document.querySelectorAll('.param-input').forEach(el => el.disabled = false);
         wires.forEach(w => {
             const p1 = getPortPos(w.fromNode, w.fromPort, true), p2 = getPortPos(w.toNode, w.toPort, false), path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('class', 'wire'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
+            path.setAttribute('class', 'wire'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+60} ${p1.y}, ${p2.x-60} ${p2.y}, ${p2.x} ${p2.y}`);
             if (selectedWire === w.id) path.style.stroke = '#ef4444'; 
             path.addEventListener('pointerdown', (e) => { e.stopPropagation(); selectedWire = w.id; drawWires(); });
             path.addEventListener('dblclick', (e) => { e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires(); });
@@ -968,9 +1090,9 @@
 
             if (selectedWire === w.id) {
                 const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2, delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY); delBg.setAttribute('r', 14 / currentZoom); delBg.setAttribute('fill', '#ef4444'); delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
+                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY); delBg.setAttribute('r', 16 / currentZoom); delBg.setAttribute('fill', '#ef4444'); delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
                 const delText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                delText.setAttribute('x', midX); delText.setAttribute('y', midY + (4 / currentZoom)); delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white'); delText.setAttribute('font-size', `${14/currentZoom}px`); delText.setAttribute('font-weight', 'bold'); delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none'; delText.textContent = '✕';
+                delText.setAttribute('x', midX); delText.setAttribute('y', midY + (5 / currentZoom)); delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white'); delText.setAttribute('font-size', `${16/currentZoom}px`); delText.setAttribute('font-weight', 'bold'); delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none'; delText.textContent = '✕';
                 delBg.addEventListener('pointerdown', (e) => { e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires(); });
                 wiresSvg.appendChild(delBg); wiresSvg.appendChild(delText);
             }
@@ -979,7 +1101,7 @@
 
         if (draggingWire) {
             const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true), wsRect = workspaceInner.getBoundingClientRect(), p2 = { x: (draggingWire.mouseX - wsRect.left) / currentZoom, y: (draggingWire.mouseY - wsRect.top) / currentZoom };
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('class', 'wire active'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('class', 'wire active'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+60} ${p1.y}, ${p2.x-60} ${p2.y}, ${p2.x} ${p2.y}`);
             wiresSvg.appendChild(path);
         }
     }
@@ -1095,8 +1217,8 @@
 
     function startDragFromPaletteActual(e, type, params = null, capture = true) {
         if (isMobile()) closeAllPanels(); const wsRect = workspaceInner.getBoundingClientRect(), x = (e.clientX - wsRect.left) / currentZoom, y = (e.clientY - wsRect.top) / currentZoom;
-        const newNodeId = createNode(type, x - 100, y - 20, null, params);
-        if (newNodeId) { draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 100; dragOffsetY = 20; el.style.zIndex = 5; el.classList.add('drag-active'); if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } }
+        const newNodeId = createNode(type, x - 120, y - 20, null, params);
+        if (newNodeId) { draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 120; dragOffsetY = 20; el.style.zIndex = 5; el.classList.add('drag-active'); if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } }
     }
 
     document.getElementById('cancel-var').onclick = () => document.getElementById('var-modal').classList.remove('active');
@@ -1159,7 +1281,15 @@
     }
 
     window.deleteScript = function(idx, e) { e.stopPropagation(); savedScripts.splice(idx, 1); saveStorage(); };
-    document.getElementById('clear-script-btn').onclick = () => { if(confirm("Clear everything?")) { localStorage.removeItem('vrcam_autosave'); setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels(); } };
+    
+    // Custom Clear Confirm
+    const confirmActionModal = document.getElementById('confirm-action-modal');
+    document.getElementById('clear-script-btn').onclick = () => confirmActionModal.classList.add('active');
+    document.getElementById('cancel-confirm-action').onclick = () => confirmActionModal.classList.remove('active');
+    document.getElementById('execute-confirm-action').onclick = () => {
+        confirmActionModal.classList.remove('active');
+        localStorage.removeItem('vrcam_autosave'); setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels();
+    };
 
     const modal = document.getElementById('save-modal');
     document.getElementById('save-script-btn').onclick = () => { modal.classList.add('active'); document.getElementById('save-script-name').value = activeScriptName.replace(' (Default)', ''); };
@@ -1179,7 +1309,9 @@
             stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } }, audio: false });
             videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = stream;
             document.getElementById('start-camera').disabled = true; document.getElementById('stop-camera').disabled = false; triggerControlsFade();
-        } catch (e) { alert("Camera error: " + e.message); }
+        } catch (e) { 
+            showToast("Camera error: " + e.message, true); 
+        }
     }
     function stopCamera() {
         if (stream) stream.getTracks().forEach(t => t.stop()); stream = null; videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = null;
