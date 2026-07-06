@@ -1095,19 +1095,12 @@
     workspaceViewport.addEventListener('wheel', (e) => { e.preventDefault(); applyZoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX, e.clientY); }, { passive: false });
 
     function getPortPos(nodeId, portName, isOut) {
-        const node = nodes[nodeId]; 
-        if (!node) return {x:0, y:0};
-        const el = node.domElement;
-        const portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
+        const node = nodes[nodeId]; if (!node) return {x:0, y:0};
+        const el = node.domElement, portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
         if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
-        const portRect = portEl.getBoundingClientRect();
-        const wsRect = workspaceInner.getBoundingClientRect();
-        return { 
-            x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2, 
-            y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2 
-        };
+        const portRect = portEl.getBoundingClientRect(), wsRect = workspaceInner.getBoundingClientRect();
+        return { x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2, y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2 };
     }
-
 
     function drawWires() {
         wiresSvg.innerHTML = ''; document.querySelectorAll('.param-input').forEach(el => el.disabled = false);
@@ -1159,7 +1152,7 @@
         activePointers.delete(e.pointerId); if (activePointers.size < 2) lastPinchDist = null;
         if (paletteDragItem) {
             startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params, false); 
-            if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; drawWires();}
+            if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null;}
             if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); try { workspaceViewport.releasePointerCapture(e.pointerId); } catch(err){} }
             paletteDragItem = null;
         }
