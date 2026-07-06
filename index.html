@@ -1094,40 +1094,100 @@
     }
     workspaceViewport.addEventListener('wheel', (e) => { e.preventDefault(); applyZoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX, e.clientY); }, { passive: false });
 
+    // --- Wire Drawing Logic ---
     function getPortPos(nodeId, portName, isOut) {
-        const node = nodes[nodeId]; if (!node) return {x:0, y:0};
-        const el = node.domElement, portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
+        const node = nodes[nodeId];
+        if (!node) return {x:0, y:0};
+        const el = node.domElement;
+        const portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
         if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
-        const portRect = portEl.getBoundingClientRect(), wsRect = workspaceInner.getBoundingClientRect();
-        return { x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2, y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2 };
+        
+        const portRect = portEl.getBoundingClientRect();
+        const wsRect = workspaceInner.getBoundingClientRect();
+        // Return UN-SCALED coordinates for the SVG path
+        return {
+            x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2,
+            y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2
+        };
     }
 
     function drawWires() {
-        wiresSvg.innerHTML = ''; document.querySelectorAll('.param-input').forEach(el => el.disabled = false);
+        wiresSvg.innerHTML = '';
         wires.forEach(w => {
-            const p1 = getPortPos(w.fromNode, w.fromPort, true), p2 = getPortPos(w.toNode, w.toPort, false), path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-            path.setAttribute('class', 'wire'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+60} ${p1.y}, ${p2.x-60} ${p2.y}, ${p2.x} ${p2.y}`);
+            const p1 = getPortPos(w.fromNode, w.fromPort, true);
+            const p2 = getPortPos(w.toNode, w.toPort, false);
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'wire');
+            path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
+            path.dataset.wireId = w.id;
+            
             if (selectedWire === w.id) path.style.stroke = '#ef4444'; 
-            path.addEventListener('pointerdown', (e) => { e.stopPropagation(); selectedWire = w.id; drawWires(); });
-            path.addEventListener('dblclick', (e) => { e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires(); });
+            
+            path.addEventListener('pointerdown', (e) => {
+                e.stopPropagation();
+                selectedWire = w.id;
+                drawWires();
+            });
+
+            path.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                wires = wires.filter(wire => wire.id !== w.id);
+                selectedWire = null;
+                rebuildGraphOrder();
+                drawWires();
+            });
             wiresSvg.appendChild(path);
 
             if (selectedWire === w.id) {
-                const midX = (p1.x + p2.x) / 2, midY = (p1.y + p2.y) / 2, delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY); delBg.setAttribute('r', 16 / currentZoom); delBg.setAttribute('fill', '#ef4444'); delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
+                const midX = (p1.x + p2.x) / 2;
+                const midY = (p1.y + p2.y) / 2;
+
+                const delBg = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                delBg.setAttribute('cx', midX); delBg.setAttribute('cy', midY);
+                delBg.setAttribute('r', 14 / currentZoom); delBg.setAttribute('fill', '#ef4444');
+                delBg.style.cursor = 'pointer'; delBg.style.pointerEvents = 'all';
+
                 const delText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-                delText.setAttribute('x', midX); delText.setAttribute('y', midY + (5 / currentZoom)); delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white'); delText.setAttribute('font-size', `${16/currentZoom}px`); delText.setAttribute('font-weight', 'bold'); delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none'; delText.textContent = '✕';
-                delBg.addEventListener('pointerdown', (e) => { e.stopPropagation(); wires = wires.filter(wire => wire.id !== w.id); selectedWire = null; rebuildGraphOrder(); drawWires(); });
-                wiresSvg.appendChild(delBg); wiresSvg.appendChild(delText);
+                delText.setAttribute('x', midX); delText.setAttribute('y', midY + (4 / currentZoom));
+                delText.setAttribute('text-anchor', 'middle'); delText.setAttribute('fill', 'white');
+                delText.setAttribute('font-size', `${14/currentZoom}px`); delText.setAttribute('font-weight', 'bold');
+                delText.style.cursor = 'pointer'; delText.style.pointerEvents = 'none';
+                delText.textContent = '✕';
+
+                delBg.addEventListener('pointerdown', (e) => {
+                    e.stopPropagation();
+                    wires = wires.filter(wire => wire.id !== w.id);
+                    selectedWire = null;
+                    rebuildGraphOrder();
+                    drawWires();
+                });
+
+                wiresSvg.appendChild(delBg);
+                wiresSvg.appendChild(delText);
             }
-            const inputEl = document.getElementById(`input-${w.toNode}-${w.toPort}`); if(inputEl) inputEl.disabled = true;
         });
 
         if (draggingWire) {
-            const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true), wsRect = workspaceInner.getBoundingClientRect(), p2 = { x: (draggingWire.mouseX - wsRect.left) / currentZoom, y: (draggingWire.mouseY - wsRect.top) / currentZoom };
-            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('class', 'wire active'); path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+60} ${p1.y}, ${p2.x-60} ${p2.y}, ${p2.x} ${p2.y}`);
+            const p1 = getPortPos(draggingWire.fromNode, draggingWire.fromPort, true);
+            const wsRect = workspaceInner.getBoundingClientRect();
+            const p2 = { 
+                x: (draggingWire.mouseX - wsRect.left) / currentZoom, 
+                y: (draggingWire.mouseY - wsRect.top) / currentZoom 
+            };
+            const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            path.setAttribute('class', 'wire active');
+            path.setAttribute('d', `M ${p1.x} ${p1.y} C ${p1.x+50} ${p1.y}, ${p2.x-50} ${p2.y}, ${p2.x} ${p2.y}`);
             wiresSvg.appendChild(path);
         }
+    }
+
+    function startWireDrag(nodeId, port, mx, my) {
+        draggingWire = { fromNode: nodeId, fromPort: port, mouseX: mx, mouseY: my };
+        drawWires();
+    }
+    function cleanupWireDrag() {
+        draggingWire = null;
+        drawWires();
     }
 
     function startWireDrag(nodeId, port, mx, my) { draggingWire = { fromNode: nodeId, fromPort: port, mouseX: mx, mouseY: my }; drawWires(); }
