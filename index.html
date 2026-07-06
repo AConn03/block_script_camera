@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -133,6 +134,16 @@
     </style>
 </head>
 <body>
+    <!-- Live Update Indicator Panel (Floating Top Right) -->
+    <div style="position: fixed; top: 15px; right: 15px; z-index: 10000; max-width: 280px; font-family: Arial, sans-serif; pointer-events: auto;">
+        <div style="padding: 10px 15px; border: 1px solid rgba(255,255,255,0.15); background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(10px); border-radius: 8px; cursor: pointer; text-align: center; color: #eee; font-size: 13px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; transition: background 0.2s, border-color 0.2s;" onclick="location.reload();" onmouseover="this.style.background='rgba(40, 40, 40, 0.9)'; this.style.borderColor='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(20, 20, 20, 0.85)'; this.style.borderColor='rgba(255,255,255,0.15)'">
+            <span style="font-size: 15px;">🔄</span> Click this box to refresh.
+        </div>
+        <div id="updateBanner" style="display: none; color: #10b981; font-weight: bold; margin-top: 8px; text-align: center; font-size: 12px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            Update available! Click the box above to refresh.
+        </div>
+    </div>
+
     <nav id="top-nav">
         <button class="nav-btn active" id="nav-camera">Camera View</button>
         <button class="nav-btn" id="nav-builder">Script Builder</button>
@@ -314,7 +325,7 @@
         math_add: { label: 'Add', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_sub: { label: 'Subtract', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
         math_mult: { label: 'Multiply', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
-        math_div: { label: 'Divide', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:1}] },
+        math_div: { label: 'Divide', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:1}, {id: 'b', label: 'B', type: 'number', default:1}] },
         compare: { label: 'Compare', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}, {id: 'op', label: 'Op', type: 'select', options: ['>', '<', '==', '!=', '>=', '<='], default: '>'}] },
         math_sin: { label: 'Sin', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
         math_cos: { label: 'Cos', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
@@ -1353,6 +1364,30 @@
 
     // --- Boot ---
     initBuilder(); updateVRMode(); window.addEventListener('resize', drawWires); renderLoop(); 
+    </script>
+
+    <!-- Background Checker Script for Version Checks -->
+    <script>
+        let initialVersion = null;
+
+        async function checkVersion() {
+            try {
+                const res = await fetch(`./version.json?_nocache=${Date.now()}`);
+                const data = await res.json();
+                
+                if (!initialVersion) {
+                    initialVersion = data.version; // Set baseline on load
+                } else if (data.version !== initialVersion) {
+                    document.getElementById('updateBanner').style.display = 'block'; // Trigger banner
+                }
+            } catch (e) { 
+                console.log("Waiting for version file..."); 
+            }
+        }
+
+        // Run immediately on launch, then loop every 5 seconds
+        checkVersion();
+        setInterval(checkVersion, 5000);
     </script>
 </body>
 </html>
