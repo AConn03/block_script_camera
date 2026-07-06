@@ -1,4 +1,4 @@
-
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,7 +18,7 @@
         button:active { transform: scale(0.98); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-        .view-container { flex: 1; position: relative; display: none; width: 100%; height: calc(100vh - 60px); }
+        .view-container { flex: 1; position: relative; display: none; width: 100%; }
         .view-container.active { display: flex; }
 
         /* --- Camera Mode --- */
@@ -134,14 +134,9 @@
     </style>
 </head>
 <body>
-    <!-- Live Update Indicator Panel (Floating Top Right) -->
-    <div style="position: fixed; top: 15px; right: 15px; z-index: 10000; max-width: 280px; font-family: Arial, sans-serif; pointer-events: auto;">
-        <div style="padding: 10px 15px; border: 1px solid rgba(255,255,255,0.15); background: rgba(20, 20, 20, 0.85); backdrop-filter: blur(10px); border-radius: 8px; cursor: pointer; text-align: center; color: #eee; font-size: 13px; font-weight: 500; box-shadow: 0 4px 15px rgba(0,0,0,0.4); display: flex; align-items: center; gap: 8px; transition: background 0.2s, border-color 0.2s;" onclick="location.reload();" onmouseover="this.style.background='rgba(40, 40, 40, 0.9)'; this.style.borderColor='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(20, 20, 20, 0.85)'; this.style.borderColor='rgba(255,255,255,0.15)'">
-            <span style="font-size: 15px;">🔄</span> Click this box to refresh.
-        </div>
-        <div id="updateBanner" style="display: none; color: #10b981; font-weight: bold; margin-top: 8px; text-align: center; font-size: 12px; background: rgba(16, 185, 129, 0.15); border: 1px solid rgba(16, 185, 129, 0.35); padding: 8px 12px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
-            Update available! Click the box above to refresh.
-        </div>
+    <!-- Centered Update Banner, directly above the tabs navigation -->
+    <div id="updateBanner" style="display: none; width: 100%; background: #10b981; color: white; text-align: center; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 0.5px; z-index: 10000; border-bottom: 1px solid rgba(255,255,255,0.15); transition: background 0.2s;" onclick="location.reload();" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
+        Update Available
     </div>
 
     <nav id="top-nav">
@@ -1263,7 +1258,7 @@
         setInterval(() => { if (Object.keys(nodes).length > 0) localStorage.setItem('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
     }
 
-    function setupDefaultGraph() {
+    setupDefaultGraph() {
         document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
         const cx = 2000, cy = 2000, cId = createNode('camera', cx - 250, cy - 100), sId = createNode('screen', cx + 50, cy - 100);
         wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
@@ -1356,7 +1351,7 @@
 
     // --- Tab Navigation ---
     document.getElementById('nav-camera').onclick = function() {
-        this.classList.add('active'); document.getElementById('nav-builder').classList.remove('active'); viewCam.classList.add('active'); document.getElementById('view-builder').classList.remove('active'); triggerControlsFade();
+        this.classList.add('active'); document.getElementById('nav-builder').classList.remove('active'); viewCam.classList.add('active'); document.getElementById('view-camera').classList.remove('active'); triggerControlsFade();
     };
     document.getElementById('nav-builder').onclick = function() {
         this.classList.add('active'); document.getElementById('nav-camera').classList.remove('active'); document.getElementById('view-builder').classList.add('active'); viewCam.classList.remove('active'); drawWires(); 
@@ -1378,7 +1373,7 @@
                 if (!initialVersion) {
                     initialVersion = data.version; // Set baseline on load
                 } else if (data.version !== initialVersion) {
-                    document.getElementById('updateBanner').style.display = 'block'; // Trigger banner
+                    document.getElementById('updateBanner').style.display = 'block'; // Show banner
                 }
             } catch (e) { 
                 console.log("Waiting for version file..."); 
@@ -1391,3 +1386,5 @@
     </script>
 </body>
 </html>
+
+```
