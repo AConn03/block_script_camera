@@ -1099,16 +1099,21 @@
         const node = nodes[nodeId];
         if (!node) return {x:0, y:0};
         const el = node.domElement;
-        const portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
-        if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
         
+        // Fallback for legacy port naming 
+        let activePortName = portName;
+        if (portName === 'video' && !isOut && !el.querySelector(`.port-in[data-port="video"]`)) {
+            activePortName = 'in';}
+        const portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${activePortName}"]`);
+        if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
         const portRect = portEl.getBoundingClientRect();
         const wsRect = workspaceInner.getBoundingClientRect();
-        // Return UN-SCALED coordinates for the SVG path
         return {
             x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2,
             y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2
         };
+    }
+
     }
 
     function drawWires() {
