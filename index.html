@@ -1100,19 +1100,30 @@
         if (!node) return {x:0, y:0};
         const el = node.domElement;
         
-        // Fallback for legacy port naming 
+        // Fallback for legacy port naming on BOTH inputs and outputs
         let activePortName = portName;
-        if (portName === 'video' && !isOut && !el.querySelector(`.port-in[data-port="video"]`)) {
-            activePortName = 'in';}
+        if (portName === 'video') {
+            // If the old save asks for 'video' but the port doesn't exist, 
+            // route to 'out' if it's an output port, or 'in' if it's an input port.
+            if (!el.querySelector(`.port-${isOut ? 'out' : 'in'}[data-port="video"]`)) {
+                activePortName = isOut ? 'out' : 'in';
+            }
+        }
+    
         const portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${activePortName}"]`);
+        
+        // The top-left fallback (if the port truly doesn't exist)
         if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
+        
         const portRect = portEl.getBoundingClientRect();
         const wsRect = workspaceInner.getBoundingClientRect();
+        
         return {
             x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2,
             y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2
         };
     }
+
 
     function drawWires() {
         wiresSvg.innerHTML = '';
