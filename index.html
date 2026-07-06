@@ -1,4 +1,4 @@
-
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -273,7 +273,9 @@
     // --- Global Application State ---
     window.userVarNames = [];
     window.userVars = {};
+    window.userVarsLastDisplay = {}; // Optimization: Cache DOM update variables
     window.isCameraPaused = false; 
+    window.wireMap = {}; // Optimization: Hash lookup map for incoming node wires
 
     function getSafeVarName(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
 
@@ -345,7 +347,7 @@
     let stream = null, usingBackCamera = true, vrMode = false, vrOffset = 0, renderLoopId = null, hideControlsTimeout = null;
     let videoWidth = 640, videoHeight = 480;
     let taintedNodes = new Set();
-    let errorDetails = {}; // Stores error data per node
+    let errorDetails = {};
 
     // --- DOM Elements ---
     const workspaceViewport = document.getElementById('workspace-viewport');
@@ -384,6 +386,8 @@
     // --- Graph Engine ---
     function rebuildGraphOrder() {
         hasCycleError = false; let inDegree = {}, adjList = {};
+        window.wireMap = {}; // Build highly-optimized O(1) wire lookup for fast evaluation
+        
         Object.keys(nodes).forEach(id => {
             inDegree[id] = 0; adjList[id] = [];
             nodes[id].domElement.classList.remove('error', 'not-run');
@@ -391,10 +395,19 @@
             hideErrorIcon(id);
             if (nodes[id].type === 'on_start') nodes[id].hasStarted = false;
         });
-        wires.forEach(w => { adjList[w.fromNode].push(w.toNode); inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1; });
+        wires.forEach(w => { 
+            // Register input caches for rapid connection polling
+            if (!window.wireMap[w.toNode]) window.wireMap[w.toNode] = {};
+            window.wireMap[w.toNode][w.toPort] = w;
+
+            adjList[w.fromNode].push(w.toNode); 
+            inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1; 
+        });
+        
         let queue = [];
         Object.keys(inDegree).forEach(id => { if (inDegree[id] === 0) queue.push(id); });
         evalOrder = []; let count = 0;
+        
         while(queue.length > 0) {
             let curr = queue.shift(); evalOrder.push(curr); count++;
             adjList[curr].forEach(neighbor => { inDegree[neighbor]--; if (inDegree[neighbor] === 0) queue.push(neighbor); });
@@ -475,7 +488,8 @@
             let isTainted = false;
 
             if (def.inPorts) def.inPorts.forEach(port => {
-                const wire = wires.find(w => w.toNode === nodeId && w.toPort === port);
+                // Optimized O(1) Cache Lookup replacing O(N) Array finds
+                const wire = window.wireMap[nodeId] ? window.wireMap[nodeId][port] : null;
                 if (wire) {
                     inputs[port] = nodes[wire.fromNode].outputData[wire.fromPort];
                     if (taintedNodes.has(wire.fromNode)) isTainted = true;
@@ -485,7 +499,7 @@
             });
             
             if (def.params) def.params.forEach(p => {
-                const wire = wires.find(w => w.toNode === nodeId && w.toPort === p.id);
+                const wire = window.wireMap[nodeId] ? window.wireMap[nodeId][p.id] : null;
                 if (wire) {
                     inputs[p.id] = nodes[wire.fromNode].outputData[wire.fromPort];
                     if (taintedNodes.has(wire.fromNode)) isTainted = true;
@@ -520,7 +534,6 @@
                 node.domElement.classList.add('error');
                 node.domElement.classList.remove('not-run');
                 
-                // Formulate intelligent suggestion
                 let suggestion = "Check the connections leading to this node. Ensure you are providing the correct data type.";
                 if (err.message.includes("Image Stream")) {
                     suggestion = "You are feeding a number or logic signal into an image port. Connect a video/image line instead.";
@@ -532,9 +545,6 @@
 
                 showErrorIcon(nodeId, err.message, suggestion);
                 console.error(`Runtime error in node ${node.type} (${nodeId}):`, err);
-                
-                // IMPORTANT: We DO NOT clear node.outputData here.
-                // This ensures it literally acts as the "last known working part" up until the error!
             }
         }
 
@@ -544,8 +554,12 @@
             if (val instanceof HTMLCanvasElement) displayVal = "[Image]";
             else if (typeof val === 'number') displayVal = Number.isInteger(val) ? val : Math.round(val * 100) / 100;
             
-            const safeName = getSafeVarName(v);
-            document.querySelectorAll(`.live-val-${safeName}`).forEach(el => el.textContent = displayVal);
+            // Optimization: Only touch DOM if the cached display string changed
+            if (window.userVarsLastDisplay[v] !== displayVal) {
+                window.userVarsLastDisplay[v] = displayVal;
+                const safeName = getSafeVarName(v);
+                document.querySelectorAll(`.live-val-${safeName}`).forEach(el => el.textContent = displayVal);
+            }
         });
     }
 
@@ -588,8 +602,6 @@
             node.outputData['video'] = canvas; return;
         } 
         if (type === 'screen') {
-            // Note: If screen is marked not-run due to an error, it is skipped in evaluateFrame, 
-            // so this won't run, resulting in the desired screen "freeze" at last valid frame!
             const renderTarget = inputs['render'] instanceof HTMLCanvasElement ? inputs['render'] : null;
             if (stream) renderFinalOutput(renderTarget);
             return;
@@ -717,19 +729,16 @@
             
             let sumX = 0, sumY = 0, count = 0;
             
-            // Loop through all pixels. Assuming mask is mostly black/transparent with bright objects.
             for (let i = 0; i < data.length; i += 4) {
-                // Check if the pixel has color (e.g. Red > 127, indicating mask presence) and is not totally transparent
                 if (data[i+3] > 0 && (data[i] > 127 || data[i+1] > 127 || data[i+2] > 127)) {
-                    const pixelIndex = i / 4;
+                    const pixelIndex = (i / 4) | 0;
                     sumX += pixelIndex % wIn;
-                    sumY += Math.floor(pixelIndex / wIn);
+                    sumY += (pixelIndex / wIn) | 0;
                     count++;
                 }
             }
             
             if (count > 0) {
-                // Calculate average and convert to 0-100% space format
                 node.outputData['x'] = (sumX / count) / wIn * 100; 
                 node.outputData['y'] = (sumY / count) / hIn * 100; 
                 node.outputData['found'] = true;
@@ -751,7 +760,6 @@
             node.outputData['video'] = canvas; return;
         }
 
-        // Validate Input Canvas for Standard Filters
         const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
         if (!inCanvas && type !== 'blend') return; 
 
@@ -869,7 +877,7 @@
                     let newR, newG, newB;
                     if (s === 0) newR = newG = newB = v;
                     else {
-                        let i_h = Math.floor(h * 6), f = h * 6 - i_h, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+                        let i_h = (h * 6) | 0, f = h * 6 - i_h, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
                         switch (i_h % 6) { case 0: newR = v, newG = t, newB = p; break; case 1: newR = q, newG = v, newB = p; break; case 2: newR = p, newG = v, newB = t; break; case 3: newR = p, newG = q, newB = v; break; case 4: newR = t, newG = p, newB = v; break; case 5: newR = v, newG = p, newB = q; break; }
                     }
                     if (mode === 'mask') { let maskVal = isOutside ? 0 : 255; data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255; } 
@@ -1258,7 +1266,7 @@
         setInterval(() => { if (Object.keys(nodes).length > 0) localStorage.setItem('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
     }
 
-    setupDefaultGraph() {
+    function setupDefaultGraph() {
         document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
         const cx = 2000, cy = 2000, cId = createNode('camera', cx - 250, cy - 100), sId = createNode('screen', cx + 50, cy - 100);
         wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
@@ -1351,10 +1359,19 @@
 
     // --- Tab Navigation ---
     document.getElementById('nav-camera').onclick = function() {
-        this.classList.add('active'); document.getElementById('nav-builder').classList.remove('active'); viewCam.classList.add('active'); document.getElementById('view-camera').classList.remove('active'); triggerControlsFade();
+        this.classList.add('active'); 
+        document.getElementById('nav-builder').classList.remove('active'); 
+        viewCam.classList.add('active'); 
+        // FIX: Now correctly removes 'active' from the builder, rather than hiding the camera view we just tried to show.
+        document.getElementById('view-builder').classList.remove('active'); 
+        triggerControlsFade();
     };
     document.getElementById('nav-builder').onclick = function() {
-        this.classList.add('active'); document.getElementById('nav-camera').classList.remove('active'); document.getElementById('view-builder').classList.add('active'); viewCam.classList.remove('active'); drawWires(); 
+        this.classList.add('active'); 
+        document.getElementById('nav-camera').classList.remove('active'); 
+        document.getElementById('view-builder').classList.add('active'); 
+        viewCam.classList.remove('active'); 
+        drawWires(); 
     };
 
     // --- Boot ---
@@ -1386,3 +1403,5 @@
     </script>
 </body>
 </html>
+
+```
