@@ -1020,7 +1020,7 @@
             const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
             const isDrop = p.type === 'number' || p.type === 'range';
             bodyHtml += `<div class="param-group ${isDrop ? 'param-droppable' : ''}" data-node="${id}" data-param="${p.id}">
-                <div class="port port-in param-port" data-node="${id}" data-port="${p.id}" style="left: -32px; top: 18px;"></div>
+                <div class="port port-in param-port" data-node="${id}" data-port="${p.id}"></div>
                 <div class="param-header"><span>${p.label}</span><span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span></div>
                 <div class="param-ui" id="pui-${id}-${p.id}"></div>
             </div>`;
@@ -1174,11 +1174,19 @@
         if (draggedNode && nodes[draggedNode]) {
             if (nodes[draggedNode].type === 'var_get') {
                 const targetEl = document.elementFromPoint(e.clientX, e.clientY), droppable = targetEl ? targetEl.closest('.param-droppable') : null;
+                // Locate this block in handlePointerRelease(e) under the 'var_get' logic:
                 if (droppable) {
-                    droppable.classList.remove('drag-over'); const targetNodeId = droppable.dataset.node, targetParamId = droppable.dataset.param;
-                    if (!nodes[targetNodeId].bindings) nodes[targetNodeId].bindings = {}; nodes[targetNodeId].bindings[targetParamId] = nodes[draggedNode].params.varName;
-                    renderParamUI(targetNodeId, targetParamId); deleteNode(draggedNode); draggedNode = null; return; 
+                    droppable.classList.remove('drag-over'); 
+                    const targetNodeId = droppable.dataset.node, targetParamId = droppable.dataset.param;
+                    wires = wires.filter(w => !(w.toNode === targetNodeId && w.toPort === targetParamId));
+                    if (!nodes[targetNodeId].bindings) nodes[targetNodeId].bindings = {}; 
+                    nodes[targetNodeId].bindings[targetParamId] = nodes[draggedNode].params.varName;
+                    renderParamUI(targetNodeId, targetParamId); 
+                    deleteNode(draggedNode); 
+                    draggedNode = null; 
+                    return; 
                 }
+
             }
             nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; 
         }
@@ -1242,7 +1250,7 @@
     function startDragFromPaletteActual(e, type, params = null, capture = true) {
         if (isMobile()) closeAllPanels(); const wsRect = workspaceInner.getBoundingClientRect(), x = (e.clientX - wsRect.left) / currentZoom, y = (e.clientY - wsRect.top) / currentZoom;
         const newNodeId = createNode(type, x - 120, y - 20, null, params);
-        if (newNodeId) { draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 120; dragOffsetY = 20; el.style.zIndex = 5; el.classList.add('drag-active'); if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } }
+        if (newNodeId) { draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 120 * currentZoom; dragOffsetY = 20 * currentZoom; el.style.zIndex = 5; el.classList.add('drag-active'); if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } }
     }
 
     document.getElementById('cancel-var').onclick = () => document.getElementById('var-modal').classList.remove('active');
