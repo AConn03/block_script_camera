@@ -1095,17 +1095,12 @@
     workspaceViewport.addEventListener('wheel', (e) => { e.preventDefault(); applyZoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX, e.clientY); }, { passive: false });
 
     function getPortPos(nodeId, portName, isOut) {
-        const node = nodes[nodeId];
-        if (!node) return {x: 0, y: 0};
-        const el = node.domElement;
-        const portEl = el.querySelector(`.port-${isOut ? 'out' : 'in'}[data-port="${portName}"]`);
-        
-        return {
-            x: portEl.offsetLeft + portEl.offsetWidth / 2 + el.offsetLeft,
-            y: portEl.offsetTop + portEl.offsetHeight / 2 + el.offsetTop
-        };
+        const node = nodes[nodeId]; if (!node) return {x:0, y:0};
+        const el = node.domElement, portEl = el.querySelector(`.port-${isOut?'out':'in'}[data-port="${portName}"]`);
+        if (!portEl) return {x:parseInt(el.style.left), y:parseInt(el.style.top)};
+        const portRect = portEl.getBoundingClientRect(), wsRect = workspaceInner.getBoundingClientRect();
+        return { x: (portRect.left - wsRect.left) / currentZoom + (portRect.width / currentZoom) / 2, y: (portRect.top - wsRect.top) / currentZoom + (portRect.height / currentZoom) / 2 };
     }
-
 
     function drawWires() {
         wiresSvg.innerHTML = ''; document.querySelectorAll('.param-input').forEach(el => el.disabled = false);
