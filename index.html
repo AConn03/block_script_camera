@@ -1,4 +1,4 @@
-
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,7 +18,7 @@
         button:active { transform: scale(0.98); }
         button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-        .view-container { flex: 1; position: relative; display: none; width: 100%; }
+        .view-container { flex: 1; position: relative; display: none; width: 100%; height: calc(100vh - 60px); }
         .view-container.active { display: flex; }
 
         /* --- Camera Mode --- */
@@ -49,6 +49,7 @@
         .palette-block { padding: 12px 10px; border-radius: 6px; background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255,255,255,0.05); cursor: grab; font-size: 13px; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; touch-action: pan-y; }
         .palette-block:active { cursor: grabbing; }
         .palette-block:hover { background: rgba(255, 255, 255, 0.2); }
+        .palette-block.special { border-left: 3px solid #3b82f6; }
 
         #workspace-viewport { flex: 1; position: relative; overflow: hidden; background: #111; cursor: grab; touch-action: none; }
         #workspace-viewport.panning { cursor: grabbing !important; }
@@ -66,7 +67,6 @@
         .node { position: absolute; background: rgba(25, 25, 25, 0.95); border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; min-width: 240px; z-index: 2; box-shadow: 0 6px 15px rgba(0,0,0,0.6); display: flex; flex-direction: column; cursor: default; transition: box-shadow 0.2s; }
         .node.drag-active { opacity: 0.9; box-shadow: 0 15px 35px rgba(0,0,0,0.9); border-color: rgba(255,255,255,0.4); }
         
-        /* Error Visualization Classes */
         .node.error { border-color: #ef4444; box-shadow: 0 0 20px rgba(239, 68, 68, 0.7); }
         .node.not-run { border-color: #ef4444; box-shadow: 0 0 15px rgba(239, 68, 68, 0.4); }
         .node.not-run::after { content: ''; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(239, 68, 68, 0.15); border-radius: 10px; pointer-events: none; z-index: 10; }
@@ -134,7 +134,6 @@
     </style>
 </head>
 <body>
-    <!-- Centered Update Banner, directly above the tabs navigation -->
     <div id="updateBanner" style="display: none; width: 100%; background: #10b981; color: white; text-align: center; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 0.5px; z-index: 10000; border-bottom: 1px solid rgba(255,255,255,0.15); transition: background 0.2s;" onclick="location.reload();" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
         Update Available
     </div>
@@ -270,43 +269,53 @@
     </div>
 
     <script>
+    // --- Safe Storage Wrappers (Fixes silent crashes in strict previews/iframes) ---
+    function safeGetStorage(key) { try { return localStorage.getItem(key); } catch(e) { return null; } }
+    function safeSetStorage(key, val) { try { localStorage.setItem(key, val); } catch(e) { } }
+    function safeRemoveStorage(key) { try { localStorage.removeItem(key); } catch(e) { } }
+
     // --- Global Application State ---
     window.userVarNames = [];
     window.userVars = {};
-    window.userVarsLastDisplay = {}; // Optimization: Cache DOM update variables
+    window.userVarsLastDisplay = {}; 
     window.isCameraPaused = false; 
-    window.wireMap = {}; // Optimization: Hash lookup map for incoming node wires
+    window.wireMap = {}; 
 
     function getSafeVarName(name) { return name.replace(/[^a-zA-Z0-9]/g, '_'); }
 
-    // --- Node Definitions ---
+    // Global Error Catcher
+    window.addEventListener('error', function(e) {
+        showToast("System Crash: " + e.message, true);
+    });
+
+    // --- Node Definitions (Unified Ports to maintain backwards compatibility) ---
     const NODE_DEFS = {
         camera: { label: 'Camera In', category: 'I/O', inPorts: [], outPorts: ['video'] },
         screen: { label: 'Screen Out', category: 'I/O', inPorts: ['render'], outPorts: [] },
         
-        // Image Processing
-        fps: { label: 'Framerate Limit', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'fps', label: 'Max FPS', type: 'range', min: 1, max: 60, default: 30 }] },
-        delay: { label: 'Image Delay', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 1, max: 60, default: 15 }] },
-        brightness: { label: 'Brightness', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
-        contrast: { label: 'Contrast', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
-        hue_shift: { label: 'Hue Shift', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'deg', label: 'Degrees', type: 'range', min: -180, max: 180, default: 0 }] },
-        saturation: { label: 'Saturation', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 200, default: 100 }] },
-        translate: { label: 'Translate', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'cx', label: 'X', type: 'range', min: -500, max: 500, default: 0 }, { id: 'cy', label: 'Y', type: 'range', min: -500, max: 500, default: 0 }] },
-        scale: { label: 'Scale', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'scale', label: 'Scale (%)', type: 'range', min: 1, max: 500, default: 100 }] },
-        flip: { label: 'Flip', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'flipX', label: 'Flip X', type: 'select', options: ['false', 'true'], default: 'false' }, { id: 'flipY', label: 'Flip Y', type: 'select', options: ['false', 'true'], default: 'false' }] },
-        grayscale: { label: 'Grayscale', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] },
-        invert: { label: 'Invert', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] },
-        tint: { label: 'RGB Filter', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'r', label: 'Red', type: 'range', min: 0, max: 255, default: 255 }, { id: 'g', label: 'Green', type: 'range', min: 0, max: 255, default: 255 }, { id: 'b', label: 'Blue', type: 'range', min: 0, max: 255, default: 255 }] },
-        bandpass: { label: 'Band Pass', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'channel', label: 'Target', type: 'select', options: ['luma', 'red', 'green', 'blue'], default: 'luma' }, { id: 'median', label: 'Value', type: 'range', min: 0, max: 255, default: 127 }, { id: 'range', label: 'Width', type: 'range', min: 0, max: 255, default: 50 }] },
-        hsv_pass: { label: 'HSV Pass', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'target', label: 'Hue', type: 'range', min: 0, max: 360, default: 0 }, { id: 'tol', label: 'Hue Tol', type: 'range', min: 0, max: 180, default: 30 }, { id: 's_target', label: 'Sat', type: 'range', min: 0, max: 100, default: 100 }, { id: 's_tol', label: 'Sat Tol', type: 'range', min: 0, max: 100, default: 75 }, { id: 'v_target', label: 'Val', type: 'range', min: 0, max: 100, default: 100 }, { id: 'v_tol', label: 'Val Tol', type: 'range', min: 0, max: 100, default: 100 }, { id: 'mode', label: 'Bg Mode', type: 'select', options: ['transparent', 'mask', 'grayscale', 'black'], default: 'transparent' }] },
-        chroma: { label: 'Chroma Key', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'r', label: 'Red', type: 'range', min:0, max:255, default:0 }, { id: 'g', label: 'Green', type: 'range', min:0, max:255, default:255 }, { id: 'b', label: 'Blue', type: 'range', min:0, max:255, default:0 }, { id: 'tol', label: 'Tolerance', type: 'range', min:1, max:200, default:80 }] },
-        edge: { label: 'Edge Detect', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['grayscale', 'binary'], default: 'grayscale' }, { id: 'intensity', label: 'Thresh', type: 'range', min: 1, max: 255, default: 50 }] },
-        mask: { label: 'Luma Mask', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'invert', label: 'Invert', type: 'select', options: ['false', 'true'], default: 'false' }] },
-        pixelate: { label: 'Pixelate', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'size', label: 'Block', type: 'range', min:1, max:100, default:10 }] },
-        accumulate: { label: 'Long Exposure', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 2, max: 60, default: 15 }, { id: 'mode', label: 'Blend', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }] },
+        // Image Processing - Unified to 'in' and 'out' so old graphs don't break!
+        fps: { label: 'Framerate Limit', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'fps', label: 'Max FPS', type: 'range', min: 1, max: 60, default: 30 }] },
+        delay: { label: 'Image Delay', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 1, max: 60, default: 15 }] },
+        brightness: { label: 'Brightness', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
+        contrast: { label: 'Contrast', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount', type: 'range', min: -100, max: 100, default: 0 }] },
+        hue_shift: { label: 'Hue Shift', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'deg', label: 'Degrees', type: 'range', min: -180, max: 180, default: 0 }] },
+        saturation: { label: 'Saturation', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 200, default: 100 }] },
+        translate: { label: 'Translate', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'cx', label: 'Coarse X', type: 'range', min: -1000, max: 1000, default: 0 }, { id: 'fx', label: 'Fine X', type: 'range', min: -50, max: 50, default: 0 }, { id: 'cy', label: 'Coarse Y', type: 'range', min: -1000, max: 1000, default: 0 }, { id: 'fy', label: 'Fine Y', type: 'range', min: -50, max: 50, default: 0 }] },
+        scale: { label: 'Scale', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'scale', label: 'Scale (%)', type: 'range', min: 1, max: 500, default: 100 }] },
+        flip: { label: 'Flip', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'flipX', label: 'Flip X', type: 'select', options: ['false', 'true'], default: 'false' }, { id: 'flipY', label: 'Flip Y', type: 'select', options: ['false', 'true'], default: 'false' }] },
+        grayscale: { label: 'Grayscale', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] },
+        invert: { label: 'Invert', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'amount', label: 'Amount (%)', type: 'range', min: 0, max: 100, default: 100 }] },
+        tint: { label: 'RGB Filter', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'r', label: 'Red', type: 'range', min: 0, max: 255, default: 255 }, { id: 'g', label: 'Green', type: 'range', min: 0, max: 255, default: 255 }, { id: 'b', label: 'Blue', type: 'range', min: 0, max: 255, default: 255 }] },
+        bandpass: { label: 'Band Pass', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'channel', label: 'Target', type: 'select', options: ['luma', 'red', 'green', 'blue'], default: 'luma' }, { id: 'median', label: 'Value', type: 'range', min: 0, max: 255, default: 127 }, { id: 'range', label: 'Width', type: 'range', min: 0, max: 255, default: 50 }] },
+        hsv_pass: { label: 'HSV Pass', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'target', label: 'Hue', type: 'range', min: 0, max: 360, default: 0 }, { id: 'tol', label: 'Hue Tol', type: 'range', min: 0, max: 180, default: 30 }, { id: 's_target', label: 'Sat', type: 'range', min: 0, max: 100, default: 100 }, { id: 's_tol', label: 'Sat Tol', type: 'range', min: 0, max: 100, default: 75 }, { id: 'v_target', label: 'Val', type: 'range', min: 0, max: 100, default: 100 }, { id: 'v_tol', label: 'Val Tol', type: 'range', min: 0, max: 100, default: 100 }, { id: 'mode', label: 'Bg Mode', type: 'select', options: ['transparent', 'mask', 'grayscale', 'black'], default: 'transparent' }] },
+        chroma: { label: 'Chroma Key', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'r', label: 'Red', type: 'range', min:0, max:255, default:0 }, { id: 'g', label: 'Green', type: 'range', min:0, max:255, default:255 }, { id: 'b', label: 'Blue', type: 'range', min:0, max:255, default:0 }, { id: 'tol', label: 'Tolerance', type: 'range', min:1, max:200, default:80 }] },
+        edge: { label: 'Edge Detect', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['grayscale', 'binary'], default: 'grayscale' }, { id: 'intensity', label: 'Thresh', type: 'range', min: 1, max: 255, default: 50 }] },
+        mask: { label: 'Luma Mask', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'invert', label: 'Invert', type: 'select', options: ['false', 'true'], default: 'false' }] },
+        pixelate: { label: 'Pixelate', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'size', label: 'Block', type: 'range', min:1, max:100, default:10 }] },
+        accumulate: { label: 'Long Exposure', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 2, max: 60, default: 15 }, { id: 'mode', label: 'Blend', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }] },
         blend: { label: 'Blend', category: 'Image Processing', inPorts: ['bg', 'fg'], outPorts: ['out'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' }, { id: 'mix', label: 'Amount', type: 'range', min: 0, max: 100, default: 50 }] },
-        get_position: { label: 'Get Position (Mask)', category: 'Image Processing', inPorts: ['video'], outPorts: ['x', 'y', 'found'] },
-        draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['video'], outPorts: ['video'], params: [{id: 'x', label:'X', type:'number', default:50}, {id:'y', label:'Y', type:'number', default:50}] },
+        get_position: { label: 'Get Position (Mask)', category: 'Image Processing', inPorts: ['in'], outPorts: ['x', 'y', 'found'] },
+        draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{id: 'x', label:'X', type:'number', default:50}, {id:'y', label:'Y', type:'number', default:50}] },
 
         // Triggers & Logic
         on_start: { label: 'On Start', category: 'Triggers', inPorts: [], outPorts: ['exec'] },
@@ -330,6 +339,7 @@
         math_pi: { label: 'Pi', category: 'Math', inPorts: [], outPorts: ['out'] },
         math_log: { label: 'Log', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:1}] },
         time_sec: { label: 'Time (sec)', category: 'Math', inPorts: [], outPorts: ['val'] },
+        time_date: { label: 'Date (day)', category: 'Math', inPorts: [], outPorts: ['val'] },
         math_pos_convert: { label: 'Pos % <-> px', category: 'Math', inPorts: [], outPorts: ['x', 'y'], params: [{id: 'mode', label: 'Mode', type: 'select', options: ['% to px', 'px to %'], default: '% to px'}, {id: 'x_in', label: 'X In', type: 'number', default: 50}, {id: 'y_in', label: 'Y In', type: 'number', default: 50}] },
 
         // Variables
@@ -386,7 +396,7 @@
     // --- Graph Engine ---
     function rebuildGraphOrder() {
         hasCycleError = false; let inDegree = {}, adjList = {};
-        window.wireMap = {}; // Build highly-optimized O(1) wire lookup for fast evaluation
+        window.wireMap = {}; 
         
         Object.keys(nodes).forEach(id => {
             inDegree[id] = 0; adjList[id] = [];
@@ -396,7 +406,6 @@
             if (nodes[id].type === 'on_start') nodes[id].hasStarted = false;
         });
         wires.forEach(w => { 
-            // Register input caches for rapid connection polling
             if (!window.wireMap[w.toNode]) window.wireMap[w.toNode] = {};
             window.wireMap[w.toNode][w.toPort] = w;
 
@@ -459,10 +468,7 @@
     document.getElementById('close-error-modal').onclick = () => document.getElementById('error-info-modal').classList.remove('active');
 
     function evaluateFrame() {
-        if (hasCycleError) { 
-            showToast('Graph Error: Cycle detected! Please remove circular connections.', true);
-            return; 
-        }
+        if (hasCycleError) return; 
         if (evalOrder.length === 0) return; 
 
         if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
@@ -470,7 +476,8 @@
         Object.values(nodes).forEach(node => {
             if (!node.outputData) node.outputData = {};
             const def = NODE_DEFS[node.type];
-            // Ensure canvases are prepared for image processing
+            if (!def) return;
+            
             if ((def.category === 'Image Processing' && node.type !== 'get_position') || node.type === 'camera' || node.type === 'capture_frame') {
                 if (!node.canvas || node.canvas.width !== videoWidth) {
                     node.canvas = createInternalCanvas(videoWidth, videoHeight);
@@ -484,11 +491,13 @@
         taintedNodes.clear();
 
         for (let nodeId of evalOrder) {
-            const node = nodes[nodeId], def = NODE_DEFS[node.type]; let inputs = {};
+            const node = nodes[nodeId], def = NODE_DEFS[node.type]; 
+            if (!def) continue;
+
+            let inputs = {};
             let isTainted = false;
 
             if (def.inPorts) def.inPorts.forEach(port => {
-                // Optimized O(1) Cache Lookup replacing O(N) Array finds
                 const wire = window.wireMap[nodeId] ? window.wireMap[nodeId][port] : null;
                 if (wire) {
                     inputs[port] = nodes[wire.fromNode].outputData[wire.fromPort];
@@ -506,7 +515,6 @@
                 }
             });
 
-            // If an upstream node crashed, skip running this one so it safely holds its last working data state.
             if (isTainted) {
                 taintedNodes.add(nodeId);
                 node.domElement.classList.add('not-run');
@@ -516,16 +524,18 @@
             }
 
             try {
-                // Strict validation to enforce predictable behaviors and trigger our catch
-                if (def.category === 'Image Processing' && inputs['video'] !== null && inputs['video'] !== undefined) {
-                    if (!(inputs['video'] instanceof HTMLCanvasElement)) {
-                        throw new Error(`Invalid type received on 'video' port. Expected Image Stream, got ${typeof inputs['video']}.`);
+                // Dual support check to prevent old graphs from erroring
+                if (def.category === 'Image Processing') {
+                    const canvasInput = inputs['in'] !== undefined ? inputs['in'] : inputs['video'];
+                    if (canvasInput !== null && canvasInput !== undefined) {
+                        if (!(canvasInput instanceof HTMLCanvasElement)) {
+                            throw new Error(`Invalid type received on video port. Expected Image Stream, got ${typeof canvasInput}.`);
+                        }
                     }
                 }
 
                 applyNodeEffect(node, inputs);
                 
-                // Clear error visualization on success
                 node.domElement.classList.remove('error', 'not-run');
                 hideErrorIcon(nodeId);
 
@@ -544,7 +554,6 @@
                 }
 
                 showErrorIcon(nodeId, err.message, suggestion);
-                console.error(`Runtime error in node ${node.type} (${nodeId}):`, err);
             }
         }
 
@@ -554,7 +563,6 @@
             if (val instanceof HTMLCanvasElement) displayVal = "[Image]";
             else if (typeof val === 'number') displayVal = Number.isInteger(val) ? val : Math.round(val * 100) / 100;
             
-            // Optimization: Only touch DOM if the cached display string changed
             if (window.userVarsLastDisplay[v] !== displayVal) {
                 window.userVarsLastDisplay[v] = displayVal;
                 const safeName = getSafeVarName(v);
@@ -567,10 +575,9 @@
         const { type, params, ctx, canvas } = node;
         const w = canvas ? canvas.width : 0, h = canvas ? canvas.height : 0;
         
-        // Ensure canvases are wiped fresh per frame EXCEPT paused camera
         if (ctx) {
             if (type === 'camera' && window.isCameraPaused) {
-                // Do nothing, let camera retain its last frame
+                // paused state
             } else {
                 ctx.clearRect(0,0,w,h);
             }
@@ -591,6 +598,13 @@
         };
         const getP = (id, defVal) => { let v = parseFloat(getVal(id, defVal)); return isNaN(v) ? 0 : v; };
 
+        // Support for both 'video' and 'in' port names
+        const unifiedInCanvas = (inputs['in'] instanceof HTMLCanvasElement ? inputs['in'] : null) || (inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null);
+        const setUnifiedOutCanvas = (targetCanvas) => {
+            let outPort = NODE_DEFS[type].outPorts.includes('out') ? 'out' : 'video';
+            node.outputData[outPort] = targetCanvas;
+        };
+
         // --- Hardware / Basic I/O ---
         if (type === 'camera') {
             if (stream) {
@@ -599,7 +613,7 @@
                 ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
                 ctx.fillStyle = '#666'; ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.fillText('Camera Off', w/2, h/2);
             }
-            node.outputData['video'] = canvas; return;
+            setUnifiedOutCanvas(canvas); return;
         } 
         if (type === 'screen') {
             const renderTarget = inputs['render'] instanceof HTMLCanvasElement ? inputs['render'] : null;
@@ -632,7 +646,8 @@
             return;
         }
 
-        if (type === 'time_sec') { const now = new Date(); const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()); node.outputData['val'] = (now - startOfDay) / 1000; return; }
+        if (type === 'time_sec') { node.outputData['val'] = Date.now() / 1000; return; }
+        if (type === 'time_date') { node.outputData['val'] = new Date().getDate(); return; }
         
         if (type === 'math_pos_convert') {
             const mode = params.mode || '% to px';
@@ -708,23 +723,20 @@
         if (type === 'capture_frame') {
             if (!node.savedCanvas) node.savedCanvas = createInternalCanvas(w, h);
             if (inputs['exec']) {
-                const inC = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
-                if (inC) { node.savedCanvas.getContext('2d').clearRect(0,0,w,h); node.savedCanvas.getContext('2d').drawImage(inC, 0, 0, w, h); }
+                if (unifiedInCanvas) { node.savedCanvas.getContext('2d').clearRect(0,0,w,h); node.savedCanvas.getContext('2d').drawImage(unifiedInCanvas, 0, 0, w, h); }
             }
             ctx.drawImage(node.savedCanvas, 0, 0);
-            node.outputData['video'] = canvas; return;
+            setUnifiedOutCanvas(canvas); return;
         }
 
         if (type === 'get_position') {
-            const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
-            if (!inCanvas) { 
+            if (!unifiedInCanvas) { 
                 node.outputData['x'] = 50; node.outputData['y'] = 50; node.outputData['found'] = false; 
                 return; 
             }
             
-            const wIn = inCanvas.width || 1;
-            const hIn = inCanvas.height || 1;
-            const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
+            const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
+            const inCtx = unifiedInCanvas.getContext('2d', {willReadFrequently: true});
             const data = inCtx.getImageData(0,0,wIn,hIn).data;
             
             let sumX = 0, sumY = 0, count = 0;
@@ -751,72 +763,71 @@
         }
 
         if (type === 'draw_point') {
-            const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
-            if (inCanvas) ctx.drawImage(inCanvas, 0, 0);
+            if (unifiedInCanvas) ctx.drawImage(unifiedInCanvas, 0, 0);
             const x = getP('x', 50), y = getP('y', 50);
             ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 3;
             ctx.beginPath(); ctx.moveTo(x - 10, y); ctx.lineTo(x + 10, y); ctx.moveTo(x, y - 10); ctx.lineTo(x, y + 10); ctx.stroke();
             ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2); ctx.stroke();
-            node.outputData['video'] = canvas; return;
+            setUnifiedOutCanvas(canvas); return;
         }
 
-        const inCanvas = inputs['video'] instanceof HTMLCanvasElement ? inputs['video'] : null;
-        if (!inCanvas && type !== 'blend') return; 
+        if (!unifiedInCanvas && type !== 'blend') return; 
 
         // --- Fast Native Render Filters ---
         if (type === 'fps') {
             const limit = getP('fps', 30), now = performance.now();
+            let defaultOut = NODE_DEFS[type].outPorts.includes('out') ? 'out' : 'video';
             if (!node.lastTime) node.lastTime = 0;
-            if (now - node.lastTime >= (1000 / limit)) { node.lastTime = now; ctx.drawImage(inCanvas, 0, 0); } else if (node.outputData['video']) ctx.drawImage(node.outputData['video'], 0, 0);
-            node.outputData['video'] = canvas; return;
+            if (now - node.lastTime >= (1000 / limit)) { node.lastTime = now; ctx.drawImage(unifiedInCanvas, 0, 0); } else if (node.outputData[defaultOut]) ctx.drawImage(node.outputData[defaultOut], 0, 0);
+            setUnifiedOutCanvas(canvas); return;
         }
         if (type === 'delay') {
             const reqFrames = Math.max(1, parseInt(getP('frames', 15)));
             while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));
             if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
             node.bufIndex = (node.bufIndex || 0) % reqFrames;
-            const bufCtx = node.buffer[node.bufIndex].getContext('2d'); bufCtx.clearRect(0,0,w,h); bufCtx.drawImage(inCanvas, 0, 0);
+            const bufCtx = node.buffer[node.bufIndex].getContext('2d'); bufCtx.clearRect(0,0,w,h); bufCtx.drawImage(unifiedInCanvas, 0, 0);
             ctx.drawImage(node.buffer[(node.bufIndex + 1) % reqFrames] || node.buffer[0], 0, 0);
-            node.bufIndex++; node.outputData['video'] = canvas; return;
+            node.bufIndex++; setUnifiedOutCanvas(canvas); return;
         }
         if (type === 'accumulate') {
             const reqFrames = Math.max(2, parseInt(getP('frames', 15))), mode = params.mode || 'average';
             while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));
             if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
             node.bufIndex = (node.bufIndex || 0) % reqFrames;
-            const curCtx = node.buffer[node.bufIndex].getContext('2d'); curCtx.clearRect(0,0,w,h); curCtx.drawImage(inCanvas, 0, 0);
+            const curCtx = node.buffer[node.bufIndex].getContext('2d'); curCtx.clearRect(0,0,w,h); curCtx.drawImage(unifiedInCanvas, 0, 0);
             if(node.frameCount === undefined) node.frameCount = 0; if(node.frameCount < reqFrames) node.frameCount++;
             const activeFrames = Math.min(node.frameCount, reqFrames);
             
             if (mode === 'average') { ctx.globalAlpha = 1.0 / activeFrames; ctx.globalCompositeOperation = 'source-over'; }
             else if (mode === 'lighten') { ctx.globalCompositeOperation = 'lighten'; } else if (mode === 'darken') { ctx.globalCompositeOperation = 'darken'; }
             for(let i=0; i<activeFrames; i++) ctx.drawImage(node.buffer[i], 0, 0);
-            ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.bufIndex++; node.outputData['video'] = canvas; return;
+            ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.bufIndex++; setUnifiedOutCanvas(canvas); return;
         }
         
         if (type === 'blend') {
             const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null, fgC = inputs['fg'] instanceof HTMLCanvasElement ? inputs['fg'] : null;
             if (!bgC && !fgC) return;
-            if (!bgC || !fgC) { ctx.drawImage(bgC || fgC, 0, 0); node.outputData['out'] = canvas; return; }
+            if (!bgC || !fgC) { ctx.drawImage(bgC || fgC, 0, 0); setUnifiedOutCanvas(canvas); return; }
             const mode = params.mode || 'mix', mixAmt = getP('mix', 50) / 100;
             ctx.drawImage(bgC, 0, 0); ctx.globalAlpha = mixAmt;
             if (mode === 'add') ctx.globalCompositeOperation = 'lighter'; else if (mode === 'multiply') ctx.globalCompositeOperation = 'multiply'; else if (mode === 'screen') ctx.globalCompositeOperation = 'screen'; else if (mode === 'difference') ctx.globalCompositeOperation = 'difference';
-            ctx.drawImage(fgC, 0, 0); ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.outputData['out'] = canvas; return;
+            ctx.drawImage(fgC, 0, 0); ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; setUnifiedOutCanvas(canvas); return;
         }
-        if (type === 'translate') { ctx.save(); ctx.translate(getP('cx', 0), getP('cy', 0)); ctx.drawImage(inCanvas, 0, 0); ctx.restore(); node.outputData['video'] = canvas; return; }
-        if (type === 'scale') { const scalePct = getP('scale', 100) / 100; ctx.save(); ctx.translate(w / 2, h / 2); ctx.scale(scalePct, scalePct); ctx.translate(-w / 2, -h / 2); ctx.drawImage(inCanvas, 0, 0); ctx.restore(); node.outputData['video'] = canvas; return; }
-        if (type === 'flip') { const flipX = params.flipX === 'true', flipY = params.flipY === 'true'; ctx.save(); ctx.translate(flipX ? w : 0, flipY ? h : 0); ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1); ctx.drawImage(inCanvas, 0, 0); ctx.restore(); node.outputData['video'] = canvas; return; }
+        if (type === 'translate') { ctx.save(); ctx.translate(getP('cx', 0) + getP('fx', 0), getP('cy', 0) + getP('fy', 0)); ctx.drawImage(unifiedInCanvas, 0, 0); ctx.restore(); setUnifiedOutCanvas(canvas); return; }
+        if (type === 'scale') { const scalePct = getP('scale', 100) / 100; ctx.save(); ctx.translate(w / 2, h / 2); ctx.scale(scalePct, scalePct); ctx.translate(-w / 2, -h / 2); ctx.drawImage(unifiedInCanvas, 0, 0); ctx.restore(); setUnifiedOutCanvas(canvas); return; }
+        if (type === 'flip') { const flipX = params.flipX === 'true', flipY = params.flipY === 'true'; ctx.save(); ctx.translate(flipX ? w : 0, flipY ? h : 0); ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1); ctx.drawImage(unifiedInCanvas, 0, 0); ctx.restore(); setUnifiedOutCanvas(canvas); return; }
         if (type === 'pixelate') {
             const size = Math.max(1, parseInt(getP('size', 10)));
-            if (size <= 1) { ctx.drawImage(inCanvas, 0, 0); node.outputData['video'] = canvas; return; }
-            ctx.imageSmoothingEnabled = false; ctx.drawImage(inCanvas, 0, 0, w/size, h/size); ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
-            node.outputData['video'] = canvas; return;
+            if (size <= 1) { ctx.drawImage(unifiedInCanvas, 0, 0); setUnifiedOutCanvas(canvas); return; }
+            ctx.imageSmoothingEnabled = false; ctx.drawImage(unifiedInCanvas, 0, 0, w/size, h/size); ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
+            setUnifiedOutCanvas(canvas); return;
         }
 
         // --- CPU Bound Pixel Processors ---
         const cpuTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'hue_shift', 'saturation', 'tint', 'hsv_pass', 'bandpass', 'chroma', 'mask', 'edge'];
         if (cpuTypes.includes(type)) {
-            const inCtx = inCanvas.getContext('2d', {willReadFrequently: true});
+            const inCtx = unifiedInCanvas.getContext('2d', {willReadFrequently: true});
             const imgData = inCtx.getImageData(0,0,w,h);
             const data = imgData.data; const len = data.length;
 
@@ -877,7 +888,7 @@
                     let newR, newG, newB;
                     if (s === 0) newR = newG = newB = v;
                     else {
-                        let i_h = (h * 6) | 0, f = h * 6 - i_h, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
+                        let i_h = Math.floor(h * 6), f = h * 6 - i_h, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
                         switch (i_h % 6) { case 0: newR = v, newG = t, newB = p; break; case 1: newR = q, newG = v, newB = p; break; case 2: newR = p, newG = v, newB = t; break; case 3: newR = p, newG = q, newB = v; break; case 4: newR = t, newG = p, newB = v; break; case 5: newR = v, newG = p, newB = q; break; }
                     }
                     if (mode === 'mask') { let maskVal = isOutside ? 0 : 255; data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255; } 
@@ -919,7 +930,7 @@
             }
 
             ctx.putImageData(imgData, 0, 0);
-            node.outputData['video'] = canvas;
+            setUnifiedOutCanvas(canvas);
         }
     }
 
@@ -1258,12 +1269,12 @@
             palTabs.appendChild(btn);
         });
         renderPalette(activeCategory); loadStorage();
-        const autosaved = localStorage.getItem('vrcam_autosave');
+        const autosaved = safeGetStorage('vrcam_autosave');
         if (autosaved) {
             try { const parsed = JSON.parse(autosaved); if (parsed && parsed.graph && parsed.graph.nodes && parsed.graph.nodes.length > 0) loadGraphFromJSON(parsed.graph, parsed.name); else setupDefaultGraph(); } catch(e) { setupDefaultGraph(); }
         } else if (Object.keys(nodes).length === 0) setupDefaultGraph();
 
-        setInterval(() => { if (Object.keys(nodes).length > 0) localStorage.setItem('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
+        setInterval(() => { if (Object.keys(nodes).length > 0) safeSetStorage('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
     }
 
     function setupDefaultGraph() {
@@ -1284,8 +1295,8 @@
         if (isMobile()) closeAllPanels();
     }
 
-    function loadStorage() { try { const raw = localStorage.getItem('vrcam_node_scripts'); if (raw) savedScripts = JSON.parse(raw); } catch(e) {} renderScriptList(); }
-    function saveStorage() { localStorage.setItem('vrcam_node_scripts', JSON.stringify(savedScripts)); renderScriptList(); }
+    function loadStorage() { try { const raw = safeGetStorage('vrcam_node_scripts'); if (raw) savedScripts = JSON.parse(raw); } catch(e) {} renderScriptList(); }
+    function saveStorage() { safeSetStorage('vrcam_node_scripts', JSON.stringify(savedScripts)); renderScriptList(); }
     function renderScriptList() {
         const list = document.getElementById('saved-scripts-list'); list.innerHTML = '';
         savedScripts.forEach((s, idx) => {
@@ -1296,13 +1307,12 @@
 
     window.deleteScript = function(idx, e) { e.stopPropagation(); savedScripts.splice(idx, 1); saveStorage(); };
     
-    // Custom Clear Confirm
     const confirmActionModal = document.getElementById('confirm-action-modal');
     document.getElementById('clear-script-btn').onclick = () => confirmActionModal.classList.add('active');
     document.getElementById('cancel-confirm-action').onclick = () => confirmActionModal.classList.remove('active');
     document.getElementById('execute-confirm-action').onclick = () => {
         confirmActionModal.classList.remove('active');
-        localStorage.removeItem('vrcam_autosave'); setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels();
+        safeRemoveStorage('vrcam_autosave'); setupDefaultGraph(); activeScriptName = "New Graph"; updateLabels(); if(isMobile()) closeAllPanels();
     };
 
     const modal = document.getElementById('save-modal');
@@ -1362,7 +1372,6 @@
         this.classList.add('active'); 
         document.getElementById('nav-builder').classList.remove('active'); 
         viewCam.classList.add('active'); 
-        // FIX: Now correctly removes 'active' from the builder, rather than hiding the camera view we just tried to show.
         document.getElementById('view-builder').classList.remove('active'); 
         triggerControlsFade();
     };
@@ -1388,20 +1397,20 @@
                 const data = await res.json();
                 
                 if (!initialVersion) {
-                    initialVersion = data.version; // Set baseline on load
+                    initialVersion = data.version; 
                 } else if (data.version !== initialVersion) {
-                    document.getElementById('updateBanner').style.display = 'block'; // Show banner
+                    document.getElementById('updateBanner').style.display = 'block';
                 }
             } catch (e) { 
                 console.log("Waiting for version file..."); 
             }
         }
 
-        // Run immediately on launch, then loop every 5 seconds
         checkVersion();
         setInterval(checkVersion, 5000);
     </script>
 </body>
 </html>
+
 
 ```
