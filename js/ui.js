@@ -154,7 +154,7 @@ window.duplicateNode = function(id) {
 };
 
 function applyZoom(factor, cx, cy) {
-    const oldZoom = currentZoom; let newZoom = Math.max(0.3, Math.min(currentZoom * factor, 3)); if (newZoom === oldZoom) return;
+    const oldZoom = currentZoom; let newZoom = Math.max(0.1, Math.min(currentZoom * factor, 3)); if (newZoom === oldZoom) return;
     const rect = workspaceViewport.getBoundingClientRect(), wsX = (workspaceViewport.scrollLeft + (cx - rect.left)) / oldZoom, wsY = (workspaceViewport.scrollTop + (cy - rect.top)) / oldZoom;
     currentZoom = newZoom; workspaceInner.style.transform = `scale(${currentZoom})`;
     workspaceViewport.scrollLeft = wsX * currentZoom - (cx - rect.left); workspaceViewport.scrollTop = wsY * currentZoom - (cy - rect.top); drawWires();
