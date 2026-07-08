@@ -366,9 +366,8 @@ window.autoLayoutNodes = function() {
     let levels = {};
     Object.keys(nodes).forEach(id => levels[id] = 0);
     
-    // Find max path length to an end node
     let changed = true;
-    let maxIters = 100; // safety limit for cycles
+    let maxIters = 100;
     while (changed && maxIters > 0) {
         changed = false;
         wires.forEach(w => {
@@ -390,45 +389,45 @@ window.autoLayoutNodes = function() {
         columns[lvl].push(id);
     });
 
-    // Configuration
     const endX = 2600;     
     const startY = 1850;   
-    const colWidth = 340;  
-    const minRowHeight = 170; // Slightly larger to accommodate parameters
+    const colWidth = 380; // Slightly wider to accommodate complex wiring
+    const nodePadding = 40; // Vertical padding between nodes
     let coordinates = {};
 
-    // Helper: Gets the visual vertical index of a port on a node
-    function getPortVisualIndex(nodeId, portName) {
+    // Helper: Get local Y offset of a specific port (relative to the node's top)
+    function getPortOffsetY(nodeId, portName, isOut) {
         const node = nodes[nodeId];
-        if (!node) return 0;
-        const def = NODE_DEFS[node.type];
-        if (!def) return 0;
+        if (!node || !node.domElement) return 0;
         
-        let index = 0;
-        if (def.inPorts) {
-            let idx = def.inPorts.indexOf(portName);
-            if (idx !== -1) return idx;
-            index += def.inPorts.length;
+        // Try to find the exact port element in the DOM
+        let portEl = node.domElement.querySelector(`.port-${isOut ? 'out' : 'in'}[data-port="${portName}"]`);
+        
+        // Fallback for unified ports or missing attributes
+        if (!portEl && portName === 'video') {
+            portEl = node.domElement.querySelector(`.port-${isOut ? 'out' : 'in'}`);
         }
-        if (def.params) {
-            let idx = def.params.findIndex(p => p.id === portName);
-            if (idx !== -1) return index + idx;
-        }
-        return 0;
-    }
 
-    // Helper: Calculate total visual ports for centering
-    function getTotalPorts(nodeType) {
-        const def = NODE_DEFS[nodeType];
-        if (!def) return 1;
-        return (def.inPorts ? def.inPorts.length : 0) + (def.params ? def.params.length : 0);
+        if (portEl) {
+            // Return its vertical center relative to the node
+            return portEl.offsetTop + (portEl.offsetHeight / 2);
+        }
+        
+        // Fallback to the vertical center of the node
+        return node.domElement.offsetHeight / 2;
     }
 
     // 3. Layout Level 0 (End Nodes)
     if (columns[0]) {
-        let startLvl0 = startY - ((columns[0].length - 1) * minRowHeight) / 2;
-        columns[0].forEach((id, i) => {
-            coordinates[id] = { x: endX, y: startLvl0 + (i * minRowHeight) };
+        columns[0].sort();
+        
+        // Calculate total height to center the block of end nodes
+        let totalHeight = columns[0].reduce((sum, id) => sum + nodes[id].domElement.offsetHeight + nodePadding, 0) - nodePadding;
+        let currentY = startY - (totalHeight / 2);
+        
+        columns[0].forEach((id) => {
+            coordinates[id] = { x: endX, y: currentY, h: nodes[id].domElement.offsetHeight };
+            currentY += nodes[id].domElement.offsetHeight + nodePadding;
         });
     }
 
@@ -440,49 +439,53 @@ window.autoLayoutNodes = function() {
         
         columns[lvl].forEach(id => {
             let targetYs = [];
+            const nodeHeight = nodes[id].domElement.offsetHeight;
             
-            // Look at everything this node connects TO (forward)
             wires.forEach(w => {
                 if (w.fromNode === id && coordinates[w.toNode]) {
-                    const targetNode = nodes[w.toNode];
-                    const targetBaseY = coordinates[w.toNode].y;
+                    const targetNodeBaseY = coordinates[w.toNode].y;
                     
-                    const portIdx = getPortVisualIndex(w.toNode, w.toPort);
-                    const totalPorts = getTotalPorts(targetNode.type);
+                    // Exact Y position of the target's input port
+                    const targetPortOffset = getPortOffsetY(w.toNode, w.toPort, false);
                     
-                    // Pull up for early ports (e.g. 'bg'), push down for later ports (e.g. 'fg')
-                    let portOffset = 0;
-                    if (totalPorts > 1) {
-                        portOffset = (portIdx - (totalPorts - 1) / 2) * 155; 
-                    }
+                    // Exact Y position of this node's output port
+                    const sourcePortOffset = getPortOffsetY(id, w.fromPort, true);
                     
-                    targetYs.push(targetBaseY + portOffset);
+                    // Align the source port perfectly horizontally with the target port
+                    targetYs.push((targetNodeBaseY + targetPortOffset) - sourcePortOffset);
                 }
             });
             
-            // Ideal Y is the average of all the ports it needs to connect to
+            // Ideal Y is the average of all connected target ports
             let avgY = startY;
             if (targetYs.length > 0) {
                 avgY = targetYs.reduce((a, b) => a + b, 0) / targetYs.length;
             }
             
-            idealPositions.push({ id: id, y: avgY });
+            idealPositions.push({ id: id, y: avgY, h: nodeHeight });
         });
         
-        // Sort nodes by their ideal Y to maintain logical top-to-bottom order
+        // Sort nodes in the column by their ideal Y to maintain logical ordering
         idealPositions.sort((a, b) => a.y - b.y);
         
-        // Iterative Collision Resolution (Gentle push apart)
+        // Iterative Collision Resolution using exact node heights
         let overlap;
         let iter = 50;
         do {
             overlap = false;
             for (let i = 0; i < idealPositions.length - 1; i++) {
-                let diff = idealPositions[i+1].y - idealPositions[i].y;
-                if (diff < minRowHeight) {
-                    let push = (minRowHeight - diff) / 2;
-                    idealPositions[i].y -= push;
-                    idealPositions[i+1].y += push;
+                let nodeA = idealPositions[i];
+                let nodeB = idealPositions[i+1];
+                
+                // Calculate required space based on the actual height of Node A
+                let requiredSpace = nodeA.h + nodePadding;
+                let currentSpace = nodeB.y - nodeA.y;
+                
+                // If they overlap, push them apart equally
+                if (currentSpace < requiredSpace) {
+                    let push = (requiredSpace - currentSpace) / 2;
+                    nodeA.y -= push;
+                    nodeB.y += push;
                     overlap = true;
                 }
             }
@@ -491,7 +494,7 @@ window.autoLayoutNodes = function() {
         
         // Save computed coordinates
         idealPositions.forEach(pos => {
-            coordinates[pos.id] = { x: endX - (lvl * colWidth), y: pos.y };
+            coordinates[pos.id] = { x: endX - (lvl * colWidth), y: pos.y, h: pos.h };
         });
     }
 
@@ -507,8 +510,9 @@ window.autoLayoutNodes = function() {
     // 6. Visual updates
     rebuildGraphOrder();
     drawWires();
-    showToast("Tree aligned dynamically based on port connections!");
+    showToast("Tree aligned dynamically based on exact port positions and sizes!");
 };
+
 
 // --- Tab Navigation ---
 document.getElementById('nav-camera').onclick = function() {
