@@ -73,13 +73,13 @@
 
             <div id="mobile-bottom-bar">
                 <button id="btn-toggle-palette">➕ Add Node</button>
+                <button id="layout-script-btn-main" style="background: #10b981; border: 1px solid #059669;" onclick="window.autoLayoutNodes()">Auto Tree Layout</button>
                 <button id="btn-toggle-scripts">💾 Scripts</button>
             </div>
 
             <div class="sidebar" id="scripts-panel">
                 <div class="panel-title">Scripts</div>
                 <button id="save-script-btn" style="width: 100%; background: #3b82f6;">Save Graph</button>
-                <button id="layout-script-btn" style="width: 100%; margin-top: 10px; background: #10b981;" onclick="window.autoLayoutNodes()">🪄 Auto Layout Trees</button>
                 <button id="clear-script-btn" style="width: 100%; margin-top: 10px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4);">Clear Workspace</button>
                 <hr style="border-color: rgba(255,255,255,0.05); margin: 15px 0;">
                 <div id="saved-scripts-list" style="display: flex; flex-direction: column; gap: 0;"></div>
