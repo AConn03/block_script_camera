@@ -1,4 +1,4 @@
 {
-  "version": "1783518417",
-  "title": "Remove Auto Layout Trees button from sidebar"
+  "version": "1783518445",
+  "title": "Refactor autoLayoutNodes for clarity and structure"
 }
