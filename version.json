@@ -1,4 +1,4 @@
 {
-  "version": "1783518927",
-  "title": "Refactor Auto Tree Layout button to remove inline styles"
+  "version": "1783519013",
+  "title": "Refactor autoLayoutNodes for reverse adjacency logic"
 }
