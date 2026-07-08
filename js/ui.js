@@ -453,7 +453,7 @@ window.autoLayoutNodes = function() {
                     // Pull up for early ports (e.g. 'bg'), push down for later ports (e.g. 'fg')
                     let portOffset = 0;
                     if (totalPorts > 1) {
-                        portOffset = (portIdx - (totalPorts - 1) / 2) * 55; 
+                        portOffset = (portIdx - (totalPorts - 1) / 2) * 155; 
                     }
                     
                     targetYs.push(targetBaseY + portOffset);
