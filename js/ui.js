@@ -362,52 +362,59 @@ function updateLabels() { document.getElementById('active-script-label').textCon
 window.autoLayoutNodes = function() {
     if (Object.keys(nodes).length === 0) return;
 
-    // 1. Build structural adjacency list and parent lookups
-    let inDegree = {}, adjList = {}, parentsMap = {};
+    // 1. Build reverse adjacency list and children lookups (working backwards)
+    let outDegree = {};
+    let reverseAdjList = {}; // maps a node to the nodes that feed INTO it
+    let childrenMap = {};    // maps a node to the nodes it feeds OUT to
+
     Object.keys(nodes).forEach(id => {
-        inDegree[id] = 0;
-        adjList[id] = [];
-        parentsMap[id] = [];
+        outDegree[id] = 0;
+        reverseAdjList[id] = [];
+        childrenMap[id] = [];
     });
     
     wires.forEach(w => {
-        if (adjList[w.fromNode] && !adjList[w.fromNode].includes(w.toNode)) {
-            adjList[w.fromNode].push(w.toNode);
-            parentsMap[w.toNode].push(w.fromNode);
-            inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1;
+        if (reverseAdjList[w.toNode] && !reverseAdjList[w.toNode].includes(w.fromNode)) {
+            reverseAdjList[w.toNode].push(w.fromNode);
+            childrenMap[w.fromNode].push(w.toNode);
+            outDegree[w.fromNode] = (outDegree[w.fromNode] || 0) + 1;
         }
     });
 
-    // 2. Assign topological levels (columns)
+    // 2. Assign topological levels working from end to start
     let levels = {};
     let queue = [];
 
+    // Find all "end" nodes (nodes that don't output to anything else)
     Object.keys(nodes).forEach(id => {
-        if ((inDegree[id] || 0) === 0) {
-            levels[id] = 0;
+        if ((outDegree[id] || 0) === 0) {
+            levels[id] = 0; // End nodes are at level 0 (furthest right)
             queue.push(id);
         }
     });
 
+    // Fallback if there's a circular graph with no clear end
     if (queue.length === 0 && Object.keys(nodes).length > 0) {
         const firstId = Object.keys(nodes)[0];
         levels[firstId] = 0;
         queue.push(firstId);
     }
 
+    // Traverse backward through the graph
     while (queue.length > 0) {
         let curr = queue.shift();
         let currLevel = levels[curr];
 
-        adjList[curr].forEach(neighbor => {
-            if (levels[neighbor] === undefined || levels[neighbor] < currLevel + 1) {
-                levels[neighbor] = currLevel + 1;
-                queue.push(neighbor);
+        reverseAdjList[curr].forEach(parent => {
+            // If the parent hasn't been leveled, or we found a longer path to the end
+            if (levels[parent] === undefined || levels[parent] < currLevel + 1) {
+                levels[parent] = currLevel + 1;
+                queue.push(parent);
             }
         });
     }
 
-    // 3. Group nodes by level columns
+    // 3. Group nodes by reverse level columns
     let columns = {};
     Object.keys(nodes).forEach(id => {
         let lvl = levels[id] || 0;
@@ -415,38 +422,40 @@ window.autoLayoutNodes = function() {
         columns[lvl].push(id);
     });
 
-    // 4. Sort columns based on parent placement to preserve clean branching tree lines
+    // 4. Sort columns vertically based on where their children are placed
+    // to keep the merging wires as clean as possible
     Object.keys(columns).forEach(lvl => {
         columns[lvl].sort((a, b) => {
-            let pA = parentsMap[a][0], pB = parentsMap[b][0];
-            if (pA && pB && pA !== pB) {
-                return (levels[pA] || 0) - (levels[pB] || 0);
+            let cA = childrenMap[a][0], cB = childrenMap[b][0];
+            if (cA && cB && cA !== cB) {
+                return (levels[cA] || 0) - (levels[cB] || 0);
             }
             return 0;
         });
     });
 
     // Configuration constraints
-    const startX = 1800;
-    const startY = 1850;
-    const colWidth = 340;  // Generous horizontal space to view long wires
-    const rowHeight = 160; // Clean vertical branching gap
+    const endX = 2600;     // Anchor the end nodes on the right side of the workspace
+    const startY = 1850;   // Vertical center anchor
+    const colWidth = 340;  // Horizontal spacing between backwards columns
+    const rowHeight = 160; // Vertical spacing between stacked nodes
 
     let coordinates = {};
 
     // 5. Initial position layout phase
-    Object.keys(columns).forEach(colIdx => {
-        const colNodes = columns[colIdx];
+    Object.keys(columns).forEach(lvl => {
+        const colNodes = columns[lvl];
         const totalHeight = (colNodes.length - 1) * rowHeight;
         
         colNodes.forEach((id, rowIdx) => {
-            const posX = startX + (colIdx * colWidth);
+            // Level 0 is at endX, Level 1 is pushed left by colWidth, etc.
+            const posX = endX - (lvl * colWidth);
             const posY = startY + (rowIdx * rowHeight) - (totalHeight / 2);
             coordinates[id] = { x: posX, y: posY };
         });
     });
 
-    // 6. Collision Resolution Pass (Double-checks complete or near overlaps)
+    // 6. Collision Resolution Pass
     let iterations = 5; 
     let hasOverlap = true;
 
@@ -459,7 +468,7 @@ window.autoLayoutNodes = function() {
                 let id1 = keys[i], id2 = keys[j];
                 let n1 = coordinates[id1], n2 = coordinates[id2];
 
-                // Detect overlaps within a bounding radius threshold box
+                // Detect overlaps within a bounding threshold box
                 if (Math.abs(n1.x - n2.x) < 40 && Math.abs(n1.y - n2.y) < 50) {
                     hasOverlap = true;
                     // Push the conflicting node downward along the row height grid spacing
@@ -482,7 +491,7 @@ window.autoLayoutNodes = function() {
     // 8. Visual canvas updates
     rebuildGraphOrder();
     drawWires();
-    showToast("Tree structure aligned seamlessly!");
+    showToast("Tree structure aligned recursively from the end!");
 };
 
 // --- Tab Navigation ---
