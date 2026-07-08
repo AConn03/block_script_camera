@@ -362,25 +362,26 @@ function updateLabels() { document.getElementById('active-script-label').textCon
 window.autoLayoutNodes = function() {
     if (Object.keys(nodes).length === 0) return;
 
-    // 1. Calculate in-degrees and build adjacency lists
-    let inDegree = {}, adjList = {};
+    // 1. Build structural adjacency list and parent lookups
+    let inDegree = {}, adjList = {}, parentsMap = {};
     Object.keys(nodes).forEach(id => {
         inDegree[id] = 0;
         adjList[id] = [];
+        parentsMap[id] = [];
     });
     
     wires.forEach(w => {
         if (adjList[w.fromNode] && !adjList[w.fromNode].includes(w.toNode)) {
             adjList[w.fromNode].push(w.toNode);
+            parentsMap[w.toNode].push(w.fromNode);
             inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1;
         }
     });
 
-    // 2. Assign levels (columns) to each node using a Breadth-First approach
+    // 2. Assign topological levels (columns)
     let levels = {};
     let queue = [];
 
-    // Roots are trigger nodes or any node with 0 incoming connections
     Object.keys(nodes).forEach(id => {
         if ((inDegree[id] || 0) === 0) {
             levels[id] = 0;
@@ -388,7 +389,6 @@ window.autoLayoutNodes = function() {
         }
     });
 
-    // If there's a cycle and no clear roots, seed with the first available node
     if (queue.length === 0 && Object.keys(nodes).length > 0) {
         const firstId = Object.keys(nodes)[0];
         levels[firstId] = 0;
@@ -400,7 +400,6 @@ window.autoLayoutNodes = function() {
         let currLevel = levels[curr];
 
         adjList[curr].forEach(neighbor => {
-            // Level is the maximum distance from a root node
             if (levels[neighbor] === undefined || levels[neighbor] < currLevel + 1) {
                 levels[neighbor] = currLevel + 1;
                 queue.push(neighbor);
@@ -408,7 +407,7 @@ window.autoLayoutNodes = function() {
         });
     }
 
-    // 3. Group node IDs by their assigned level
+    // 3. Group nodes by level columns
     let columns = {};
     Object.keys(nodes).forEach(id => {
         let lvl = levels[id] || 0;
@@ -416,34 +415,74 @@ window.autoLayoutNodes = function() {
         columns[lvl].push(id);
     });
 
-    // 4. Position parameters
-    const startX = 1700; // Positions layout cleanly near the workspace center
-    const startY = 1800;
-    const colWidth = 320; // Horizontal distance between levels
-    const rowHeight = 180; // Vertical distance between nodes in the same column
+    // 4. Sort columns based on parent placement to preserve clean branching tree lines
+    Object.keys(columns).forEach(lvl => {
+        columns[lvl].sort((a, b) => {
+            let pA = parentsMap[a][0], pB = parentsMap[b][0];
+            if (pA && pB && pA !== pB) {
+                return (levels[pA] || 0) - (levels[pB] || 0);
+            }
+            return 0;
+        });
+    });
 
-    // 5. Update coordinates of DOM elements and state variables
+    // Configuration constraints
+    const startX = 1800;
+    const startY = 1850;
+    const colWidth = 340;  // Generous horizontal space to view long wires
+    const rowHeight = 160; // Clean vertical branching gap
+
+    let coordinates = {};
+
+    // 5. Initial position layout phase
     Object.keys(columns).forEach(colIdx => {
         const colNodes = columns[colIdx];
         const totalHeight = (colNodes.length - 1) * rowHeight;
         
         colNodes.forEach((id, rowIdx) => {
-            const node = nodes[id];
-            if (!node) return;
-
             const posX = startX + (colIdx * colWidth);
-            // Centering the rows vertically around the startY track line
             const posY = startY + (rowIdx * rowHeight) - (totalHeight / 2);
-
-            node.domElement.style.left = `${posX}px`;
-            node.domElement.style.top = `${posY}px`;
+            coordinates[id] = { x: posX, y: posY };
         });
     });
 
-    // 6. Refresh visual components
+    // 6. Collision Resolution Pass (Double-checks complete or near overlaps)
+    let iterations = 5; 
+    let hasOverlap = true;
+
+    while (iterations > 0 && hasOverlap) {
+        hasOverlap = false;
+        const keys = Object.keys(coordinates);
+
+        for (let i = 0; i < keys.length; i++) {
+            for (let j = i + 1; j < keys.length; j++) {
+                let id1 = keys[i], id2 = keys[j];
+                let n1 = coordinates[id1], n2 = coordinates[id2];
+
+                // Detect overlaps within a bounding radius threshold box
+                if (Math.abs(n1.x - n2.x) < 40 && Math.abs(n1.y - n2.y) < 50) {
+                    hasOverlap = true;
+                    // Push the conflicting node downward along the row height grid spacing
+                    n2.y += rowHeight;
+                }
+            }
+        }
+        iterations--;
+    }
+
+    // 7. Commit calculated positions to actual DOM elements
+    Object.keys(coordinates).forEach(id => {
+        const node = nodes[id];
+        if (node) {
+            node.domElement.style.left = `${coordinates[id].x}px`;
+            node.domElement.style.top = `${coordinates[id].y}px`;
+        }
+    });
+
+    // 8. Visual canvas updates
     rebuildGraphOrder();
     drawWires();
-    showToast("Nodes automatically aligned!");
+    showToast("Tree structure aligned seamlessly!");
 };
 
 // --- Tab Navigation ---
