@@ -365,7 +365,6 @@ function updateLabels() { document.getElementById('active-script-label').textCon
 window.autoLayoutNodes = function() {
     if (Object.keys(nodes).length === 0) return;
 
-    // 1. Calculate Levels (distance from end nodes to push them far left)
     let levels = {};
     Object.keys(nodes).forEach(id => levels[id] = 0);
     
@@ -382,7 +381,6 @@ window.autoLayoutNodes = function() {
         maxIters--;
     }
 
-    // 2. Group into columns
     let columns = {};
     let maxLevel = 0;
     Object.keys(nodes).forEach(id => {
@@ -392,39 +390,34 @@ window.autoLayoutNodes = function() {
         columns[lvl].push(id);
     });
 
-    const endX = 2600;     
-    const startY = 1850;   
-    const colWidth = 380; // Slightly wider to accommodate complex wiring
-    const nodePadding = 40; // Vertical padding between nodes
+    // Anchored to the new infinite canvas center
+    const endX = 50500;     
+    const startY = 50000;   
+    const colWidth = 380; 
+    const nodePadding = 40; 
     let coordinates = {};
 
-    // Helper: Get local Y offset of a specific port (relative to the node's top)
+    // FIXED: Uses bounding client rect to find exact absolute offset, ignoring DOM nesting limits
     function getPortOffsetY(nodeId, portName, isOut) {
         const node = nodes[nodeId];
         if (!node || !node.domElement) return 0;
         
-        // Try to find the exact port element in the DOM
         let portEl = node.domElement.querySelector(`.port-${isOut ? 'out' : 'in'}[data-port="${portName}"]`);
-        
-        // Fallback for unified ports or missing attributes
         if (!portEl && portName === 'video') {
             portEl = node.domElement.querySelector(`.port-${isOut ? 'out' : 'in'}`);
         }
 
         if (portEl) {
-            // Return its vertical center relative to the node
-            return portEl.offsetTop + (portEl.offsetHeight / 2);
+            const nodeRect = node.domElement.getBoundingClientRect();
+            const portRect = portEl.getBoundingClientRect();
+            return ((portRect.top - nodeRect.top) + (portRect.height / 2)) / currentZoom;
         }
         
-        // Fallback to the vertical center of the node
         return node.domElement.offsetHeight / 2;
     }
 
-    // 3. Layout Level 0 (End Nodes)
     if (columns[0]) {
         columns[0].sort();
-        
-        // Calculate total height to center the block of end nodes
         let totalHeight = columns[0].reduce((sum, id) => sum + nodes[id].domElement.offsetHeight + nodePadding, 0) - nodePadding;
         let currentY = startY - (totalHeight / 2);
         
@@ -434,7 +427,6 @@ window.autoLayoutNodes = function() {
         });
     }
 
-    // 4. Layout remaining levels from 1 to maxLevel (Right to Left)
     for (let lvl = 1; lvl <= maxLevel; lvl++) {
         if (!columns[lvl]) continue;
         
@@ -447,19 +439,13 @@ window.autoLayoutNodes = function() {
             wires.forEach(w => {
                 if (w.fromNode === id && coordinates[w.toNode]) {
                     const targetNodeBaseY = coordinates[w.toNode].y;
-                    
-                    // Exact Y position of the target's input port
                     const targetPortOffset = getPortOffsetY(w.toNode, w.toPort, false);
-                    
-                    // Exact Y position of this node's output port
                     const sourcePortOffset = getPortOffsetY(id, w.fromPort, true);
                     
-                    // Align the source port perfectly horizontally with the target port
                     targetYs.push((targetNodeBaseY + targetPortOffset) - sourcePortOffset);
                 }
             });
             
-            // Ideal Y is the average of all connected target ports
             let avgY = startY;
             if (targetYs.length > 0) {
                 avgY = targetYs.reduce((a, b) => a + b, 0) / targetYs.length;
@@ -468,10 +454,8 @@ window.autoLayoutNodes = function() {
             idealPositions.push({ id: id, y: avgY, h: nodeHeight });
         });
         
-        // Sort nodes in the column by their ideal Y to maintain logical ordering
         idealPositions.sort((a, b) => a.y - b.y);
         
-        // Iterative Collision Resolution using exact node heights
         let overlap;
         let iter = 50;
         do {
@@ -479,12 +463,9 @@ window.autoLayoutNodes = function() {
             for (let i = 0; i < idealPositions.length - 1; i++) {
                 let nodeA = idealPositions[i];
                 let nodeB = idealPositions[i+1];
-                
-                // Calculate required space based on the actual height of Node A
                 let requiredSpace = nodeA.h + nodePadding;
                 let currentSpace = nodeB.y - nodeA.y;
                 
-                // If they overlap, push them apart equally
                 if (currentSpace < requiredSpace) {
                     let push = (requiredSpace - currentSpace) / 2;
                     nodeA.y -= push;
@@ -495,13 +476,11 @@ window.autoLayoutNodes = function() {
             iter--;
         } while (overlap && iter > 0);
         
-        // Save computed coordinates
         idealPositions.forEach(pos => {
             coordinates[pos.id] = { x: endX - (lvl * colWidth), y: pos.y, h: pos.h };
         });
     }
 
-    // 5. Apply positions
     Object.keys(coordinates).forEach(id => {
         const node = nodes[id];
         if (node) {
@@ -510,12 +489,14 @@ window.autoLayoutNodes = function() {
         }
     });
 
-    // 6. Visual updates
     rebuildGraphOrder();
     drawWires();
-    showToast("Tree aligned dynamically based on exact port positions and sizes!");
-};
+    
+    // Pan the camera to the new sorted layout
+    setTimeout(centerWorkspace, 50); 
 
+    showToast("Tree aligned dynamically based on exact port positions!");
+};
 
 // --- Tab Navigation ---
 document.getElementById('nav-camera').onclick = function() {
