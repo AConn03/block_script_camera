@@ -309,6 +309,7 @@ function initBuilder() {
     } else if (Object.keys(nodes).length === 0) setupDefaultGraph();
 
     setInterval(() => { if (Object.keys(nodes).length > 0) safeSetStorage('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
+    centerWorkspace();
 }
 
 function setupDefaultGraph() {
@@ -357,6 +358,93 @@ document.getElementById('confirm-save').onclick = () => {
 };
 
 function updateLabels() { document.getElementById('active-script-label').textContent = `Active Script: ${activeScriptName}`; }
+
+window.autoLayoutNodes = function() {
+    if (Object.keys(nodes).length === 0) return;
+
+    // 1. Calculate in-degrees and build adjacency lists
+    let inDegree = {}, adjList = {};
+    Object.keys(nodes).forEach(id => {
+        inDegree[id] = 0;
+        adjList[id] = [];
+    });
+    
+    wires.forEach(w => {
+        if (adjList[w.fromNode] && !adjList[w.fromNode].includes(w.toNode)) {
+            adjList[w.fromNode].push(w.toNode);
+            inDegree[w.toNode] = (inDegree[w.toNode] || 0) + 1;
+        }
+    });
+
+    // 2. Assign levels (columns) to each node using a Breadth-First approach
+    let levels = {};
+    let queue = [];
+
+    // Roots are trigger nodes or any node with 0 incoming connections
+    Object.keys(nodes).forEach(id => {
+        if ((inDegree[id] || 0) === 0) {
+            levels[id] = 0;
+            queue.push(id);
+        }
+    });
+
+    // If there's a cycle and no clear roots, seed with the first available node
+    if (queue.length === 0 && Object.keys(nodes).length > 0) {
+        const firstId = Object.keys(nodes)[0];
+        levels[firstId] = 0;
+        queue.push(firstId);
+    }
+
+    while (queue.length > 0) {
+        let curr = queue.shift();
+        let currLevel = levels[curr];
+
+        adjList[curr].forEach(neighbor => {
+            // Level is the maximum distance from a root node
+            if (levels[neighbor] === undefined || levels[neighbor] < currLevel + 1) {
+                levels[neighbor] = currLevel + 1;
+                queue.push(neighbor);
+            }
+        });
+    }
+
+    // 3. Group node IDs by their assigned level
+    let columns = {};
+    Object.keys(nodes).forEach(id => {
+        let lvl = levels[id] || 0;
+        if (!columns[lvl]) columns[lvl] = [];
+        columns[lvl].push(id);
+    });
+
+    // 4. Position parameters
+    const startX = 1700; // Positions layout cleanly near the workspace center
+    const startY = 1800;
+    const colWidth = 320; // Horizontal distance between levels
+    const rowHeight = 180; // Vertical distance between nodes in the same column
+
+    // 5. Update coordinates of DOM elements and state variables
+    Object.keys(columns).forEach(colIdx => {
+        const colNodes = columns[colIdx];
+        const totalHeight = (colNodes.length - 1) * rowHeight;
+        
+        colNodes.forEach((id, rowIdx) => {
+            const node = nodes[id];
+            if (!node) return;
+
+            const posX = startX + (colIdx * colWidth);
+            // Centering the rows vertically around the startY track line
+            const posY = startY + (rowIdx * rowHeight) - (totalHeight / 2);
+
+            node.domElement.style.left = `${posX}px`;
+            node.domElement.style.top = `${posY}px`;
+        });
+    });
+
+    // 6. Refresh visual components
+    rebuildGraphOrder();
+    drawWires();
+    showToast("Nodes automatically aligned!");
+};
 
 // --- Tab Navigation ---
 document.getElementById('nav-camera').onclick = function() {
