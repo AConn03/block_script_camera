@@ -8,7 +8,12 @@ async function checkVersion() {
         if (!initialVersion) {
             initialVersion = data.version; 
         } else if (data.version !== initialVersion) {
-            document.getElementById('updateBanner').style.display = 'block';
+            const banner = document.getElementById('updateBanner');
+            if (banner) {
+                const updateMessage = data.title ? `Update Available: ${data.title}` : 'Update is Available';
+                banner.textContent = `${updateMessage} (Click to reload)`;
+                banner.style.display = 'block';
+            }
         }
     } catch (e) { 
         console.log("Waiting for version file..."); 
