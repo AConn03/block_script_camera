@@ -324,14 +324,50 @@ function initBuilder() {
 
 function saveGraphToJSON() { return { userVarNames: window.userVarNames, wires: wires, nodes: Object.values(nodes).map(n => ({ id: n.id, type: n.type, params: n.params, bindings: n.bindings, x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top) })) }; }
 function loadGraphFromJSON(data, name) {
-    document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVars = {}; window.userVarNames = data.userVarNames || []; window.userVarNames.forEach(n => window.userVars[n] = 0);
-    data.nodes.forEach(n => createNode(n.type, n.x, n.y, n.id, n.params, n.bindings)); wires = data.wires.filter(w => nodes[w.fromNode] && nodes[w.toNode]); 
-    activeScriptName = name; rebuildGraphOrder(); drawWires(); updateLabels();
-    const activeTab = document.querySelector('.palette-tab.active'); if (activeTab) renderPalette(activeTab.textContent);
-    const camNode = Object.values(nodes).find(n => n.type === 'camera');
-    if(camNode) { workspaceViewport.scrollLeft = (parseInt(camNode.domElement.style.left) * currentZoom) - (isMobile()? 50 : 100); workspaceViewport.scrollTop = (parseInt(camNode.domElement.style.top) * currentZoom) - 100; }
+    document.getElementById('nodes-container').innerHTML = ''; 
+    document.getElementById('ui-layer').innerHTML = ''; 
+    nodes = {}; 
+    wires = []; 
+    window.userVars = {}; 
+    window.userVarNames = data.userVarNames || []; 
+    window.userVarNames.forEach(n => window.userVars[n] = 0);
+
+    // 1. Calculate the center of the saved graph
+    let avgX = 0, avgY = 0;
+    if (data.nodes.length > 0) {
+        data.nodes.forEach(n => { avgX += n.x; avgY += n.y; });
+        avgX /= data.nodes.length;
+        avgY /= data.nodes.length;
+    }
+
+    // 2. Define the new center anchor
+    const targetCenterX = 50000;
+    const targetCenterY = 50000;
+
+    // 3. Create nodes with an offset shift to re-center them
+    data.nodes.forEach(n => {
+        // Shift node position so the graph center matches the workspace center
+        const shiftedX = n.x - avgX + targetCenterX;
+        const shiftedY = n.y - avgY + targetCenterY;
+        createNode(n.type, shiftedX, shiftedY, n.id, n.params, n.bindings);
+    });
+
+    wires = data.wires.filter(w => nodes[w.fromNode] && nodes[w.toNode]); 
+    activeScriptName = name; 
+    rebuildGraphOrder(); 
+    drawWires(); 
+    updateLabels();
+
+    const activeTab = document.querySelector('.palette-tab.active'); 
+    if (activeTab) renderPalette(activeTab.textContent);
+    
+    // Pan viewport to the center of the loaded nodes
+    workspaceViewport.scrollLeft = targetCenterX * currentZoom - (workspaceViewport.clientWidth / 2);
+    workspaceViewport.scrollTop = targetCenterY * currentZoom - (workspaceViewport.clientHeight / 2);
+    
     if (isMobile()) closeAllPanels();
 }
+
 
 function loadStorage() { try { const raw = safeGetStorage('vrcam_node_scripts'); if (raw) savedScripts = JSON.parse(raw); } catch(e) {} renderScriptList(); }
 function saveStorage() { safeSetStorage('vrcam_node_scripts', JSON.stringify(savedScripts)); renderScriptList(); }
