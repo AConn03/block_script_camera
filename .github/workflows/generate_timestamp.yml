@@ -19,7 +19,8 @@ jobs:
 
       - name: Generate Timestamp
         run: |
-          echo '{"version": "'$(date +%s)'"}' > version.json
+          COMMIT_TITLE=$(git log -1 --format=%s)
+          jq -n --arg ver "$(date +%s)" --arg title "$COMMIT_TITLE" '{version: $ver, title: $title}' > version.json
 
       - name: Commit and Push
         run: |
