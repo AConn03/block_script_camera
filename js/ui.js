@@ -362,124 +362,140 @@ function updateLabels() { document.getElementById('active-script-label').textCon
 window.autoLayoutNodes = function() {
     if (Object.keys(nodes).length === 0) return;
 
-    // 1. Build reverse adjacency list and children lookups (working backwards)
-    let outDegree = {};
-    let reverseAdjList = {}; // maps a node to the nodes that feed INTO it
-    let childrenMap = {};    // maps a node to the nodes it feeds OUT to
-
-    Object.keys(nodes).forEach(id => {
-        outDegree[id] = 0;
-        reverseAdjList[id] = [];
-        childrenMap[id] = [];
-    });
-    
-    wires.forEach(w => {
-        if (reverseAdjList[w.toNode] && !reverseAdjList[w.toNode].includes(w.fromNode)) {
-            reverseAdjList[w.toNode].push(w.fromNode);
-            childrenMap[w.fromNode].push(w.toNode);
-            outDegree[w.fromNode] = (outDegree[w.fromNode] || 0) + 1;
-        }
-    });
-
-    // 2. Assign topological levels working from end to start
+    // 1. Calculate Levels (distance from end nodes to push them far left)
     let levels = {};
-    let queue = [];
-
-    // Find all "end" nodes (nodes that don't output to anything else)
-    Object.keys(nodes).forEach(id => {
-        if ((outDegree[id] || 0) === 0) {
-            levels[id] = 0; // End nodes are at level 0 (furthest right)
-            queue.push(id);
-        }
-    });
-
-    // Fallback if there's a circular graph with no clear end
-    if (queue.length === 0 && Object.keys(nodes).length > 0) {
-        const firstId = Object.keys(nodes)[0];
-        levels[firstId] = 0;
-        queue.push(firstId);
-    }
-
-    // Traverse backward through the graph
-    while (queue.length > 0) {
-        let curr = queue.shift();
-        let currLevel = levels[curr];
-
-        reverseAdjList[curr].forEach(parent => {
-            // If the parent hasn't been leveled, or we found a longer path to the end
-            if (levels[parent] === undefined || levels[parent] < currLevel + 1) {
-                levels[parent] = currLevel + 1;
-                queue.push(parent);
+    Object.keys(nodes).forEach(id => levels[id] = 0);
+    
+    // Find max path length to an end node
+    let changed = true;
+    let maxIters = 100; // safety limit for cycles
+    while (changed && maxIters > 0) {
+        changed = false;
+        wires.forEach(w => {
+            if (levels[w.fromNode] < levels[w.toNode] + 1) {
+                levels[w.fromNode] = levels[w.toNode] + 1;
+                changed = true;
             }
         });
+        maxIters--;
     }
 
-    // 3. Group nodes by reverse level columns
+    // 2. Group into columns
     let columns = {};
+    let maxLevel = 0;
     Object.keys(nodes).forEach(id => {
-        let lvl = levels[id] || 0;
+        let lvl = levels[id];
+        if (lvl > maxLevel) maxLevel = lvl;
         if (!columns[lvl]) columns[lvl] = [];
         columns[lvl].push(id);
     });
 
-    // 4. Sort columns vertically based on where their children are placed
-    // to keep the merging wires as clean as possible
-    Object.keys(columns).forEach(lvl => {
-        columns[lvl].sort((a, b) => {
-            let cA = childrenMap[a][0], cB = childrenMap[b][0];
-            if (cA && cB && cA !== cB) {
-                return (levels[cA] || 0) - (levels[cB] || 0);
-            }
-            return 0;
-        });
-    });
-
-    // Configuration constraints
-    const endX = 2600;     // Anchor the end nodes on the right side of the workspace
-    const startY = 1850;   // Vertical center anchor
-    const colWidth = 340;  // Horizontal spacing between backwards columns
-    const rowHeight = 160; // Vertical spacing between stacked nodes
-
+    // Configuration
+    const endX = 2600;     
+    const startY = 1850;   
+    const colWidth = 340;  
+    const minRowHeight = 170; // Slightly larger to accommodate parameters
     let coordinates = {};
 
-    // 5. Initial position layout phase
-    Object.keys(columns).forEach(lvl => {
-        const colNodes = columns[lvl];
-        const totalHeight = (colNodes.length - 1) * rowHeight;
+    // Helper: Gets the visual vertical index of a port on a node
+    function getPortVisualIndex(nodeId, portName) {
+        const node = nodes[nodeId];
+        if (!node) return 0;
+        const def = NODE_DEFS[node.type];
+        if (!def) return 0;
         
-        colNodes.forEach((id, rowIdx) => {
-            // Level 0 is at endX, Level 1 is pushed left by colWidth, etc.
-            const posX = endX - (lvl * colWidth);
-            const posY = startY + (rowIdx * rowHeight) - (totalHeight / 2);
-            coordinates[id] = { x: posX, y: posY };
-        });
-    });
-
-    // 6. Collision Resolution Pass
-    let iterations = 5; 
-    let hasOverlap = true;
-
-    while (iterations > 0 && hasOverlap) {
-        hasOverlap = false;
-        const keys = Object.keys(coordinates);
-
-        for (let i = 0; i < keys.length; i++) {
-            for (let j = i + 1; j < keys.length; j++) {
-                let id1 = keys[i], id2 = keys[j];
-                let n1 = coordinates[id1], n2 = coordinates[id2];
-
-                // Detect overlaps within a bounding threshold box
-                if (Math.abs(n1.x - n2.x) < 40 && Math.abs(n1.y - n2.y) < 50) {
-                    hasOverlap = true;
-                    // Push the conflicting node downward along the row height grid spacing
-                    n2.y += rowHeight;
-                }
-            }
+        let index = 0;
+        if (def.inPorts) {
+            let idx = def.inPorts.indexOf(portName);
+            if (idx !== -1) return idx;
+            index += def.inPorts.length;
         }
-        iterations--;
+        if (def.params) {
+            let idx = def.params.findIndex(p => p.id === portName);
+            if (idx !== -1) return index + idx;
+        }
+        return 0;
     }
 
-    // 7. Commit calculated positions to actual DOM elements
+    // Helper: Calculate total visual ports for centering
+    function getTotalPorts(nodeType) {
+        const def = NODE_DEFS[nodeType];
+        if (!def) return 1;
+        return (def.inPorts ? def.inPorts.length : 0) + (def.params ? def.params.length : 0);
+    }
+
+    // 3. Layout Level 0 (End Nodes)
+    if (columns[0]) {
+        let startLvl0 = startY - ((columns[0].length - 1) * minRowHeight) / 2;
+        columns[0].forEach((id, i) => {
+            coordinates[id] = { x: endX, y: startLvl0 + (i * minRowHeight) };
+        });
+    }
+
+    // 4. Layout remaining levels from 1 to maxLevel (Right to Left)
+    for (let lvl = 1; lvl <= maxLevel; lvl++) {
+        if (!columns[lvl]) continue;
+        
+        let idealPositions = [];
+        
+        columns[lvl].forEach(id => {
+            let targetYs = [];
+            
+            // Look at everything this node connects TO (forward)
+            wires.forEach(w => {
+                if (w.fromNode === id && coordinates[w.toNode]) {
+                    const targetNode = nodes[w.toNode];
+                    const targetBaseY = coordinates[w.toNode].y;
+                    
+                    const portIdx = getPortVisualIndex(w.toNode, w.toPort);
+                    const totalPorts = getTotalPorts(targetNode.type);
+                    
+                    // Pull up for early ports (e.g. 'bg'), push down for later ports (e.g. 'fg')
+                    let portOffset = 0;
+                    if (totalPorts > 1) {
+                        portOffset = (portIdx - (totalPorts - 1) / 2) * 55; 
+                    }
+                    
+                    targetYs.push(targetBaseY + portOffset);
+                }
+            });
+            
+            // Ideal Y is the average of all the ports it needs to connect to
+            let avgY = startY;
+            if (targetYs.length > 0) {
+                avgY = targetYs.reduce((a, b) => a + b, 0) / targetYs.length;
+            }
+            
+            idealPositions.push({ id: id, y: avgY });
+        });
+        
+        // Sort nodes by their ideal Y to maintain logical top-to-bottom order
+        idealPositions.sort((a, b) => a.y - b.y);
+        
+        // Iterative Collision Resolution (Gentle push apart)
+        let overlap;
+        let iter = 50;
+        do {
+            overlap = false;
+            for (let i = 0; i < idealPositions.length - 1; i++) {
+                let diff = idealPositions[i+1].y - idealPositions[i].y;
+                if (diff < minRowHeight) {
+                    let push = (minRowHeight - diff) / 2;
+                    idealPositions[i].y -= push;
+                    idealPositions[i+1].y += push;
+                    overlap = true;
+                }
+            }
+            iter--;
+        } while (overlap && iter > 0);
+        
+        // Save computed coordinates
+        idealPositions.forEach(pos => {
+            coordinates[pos.id] = { x: endX - (lvl * colWidth), y: pos.y };
+        });
+    }
+
+    // 5. Apply positions
     Object.keys(coordinates).forEach(id => {
         const node = nodes[id];
         if (node) {
@@ -488,10 +504,10 @@ window.autoLayoutNodes = function() {
         }
     });
 
-    // 8. Visual canvas updates
+    // 6. Visual updates
     rebuildGraphOrder();
     drawWires();
-    showToast("Tree structure aligned recursively from the end!");
+    showToast("Tree aligned dynamically based on port connections!");
 };
 
 // --- Tab Navigation ---
