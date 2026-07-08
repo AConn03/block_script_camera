@@ -3,9 +3,19 @@ function isMobile() { return window.innerWidth <= 768; }
 function closeAllPanels() { palettePanel.classList.remove('open'); scriptsPanel.classList.remove('open'); sidebarOverlay.classList.remove('active'); }
 function centerWorkspace() {
     if (workspaceViewport.clientWidth === 0) { setTimeout(centerWorkspace, 50); return; }
-    workspaceViewport.scrollLeft = 2000 * currentZoom - (workspaceViewport.clientWidth / 2);
-    workspaceViewport.scrollTop = 2000 * currentZoom - (workspaceViewport.clientHeight / 2);
+    // Updated to the new 50,000 center
+    workspaceViewport.scrollLeft = 50000 * currentZoom - (workspaceViewport.clientWidth / 2);
+    workspaceViewport.scrollTop = 50000 * currentZoom - (workspaceViewport.clientHeight / 2);
 }
+
+function setupDefaultGraph() {
+    document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
+    // Updated cx and cy to 50,000
+    const cx = 50000, cy = 50000, cId = createNode('camera', cx - 250, cy - 100), sId = createNode('screen', cx + 50, cy - 100);
+    wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
+    rebuildGraphOrder(); drawWires(); activeScriptName = "Standard (Default)"; updateLabels(); centerWorkspace();
+}
+
 
 function showToast(msg, isError = false) {
     toastAlert.classList.add('show');
@@ -310,13 +320,6 @@ function initBuilder() {
 
     setInterval(() => { if (Object.keys(nodes).length > 0) safeSetStorage('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
     centerWorkspace();
-}
-
-function setupDefaultGraph() {
-    document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
-    const cx = 2000, cy = 2000, cId = createNode('camera', cx - 250, cy - 100), sId = createNode('screen', cx + 50, cy - 100);
-    wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
-    rebuildGraphOrder(); drawWires(); activeScriptName = "Standard (Default)"; updateLabels(); centerWorkspace();
 }
 
 function saveGraphToJSON() { return { userVarNames: window.userVarNames, wires: wires, nodes: Object.values(nodes).map(n => ({ id: n.id, type: n.type, params: n.params, bindings: n.bindings, x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top) })) }; }
