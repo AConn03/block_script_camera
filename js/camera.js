@@ -27,31 +27,43 @@ async function startCamera() {
     }
 }
 function stopCamera() {
-    if (stream) stream.getTracks().forEach(t => t.stop()); 
+    // Safely check if the stream is a media stream object before stopping tracks
+    if (stream && typeof stream !== "string") {
+        stream.getTracks().forEach(t => t.stop()); 
+    }
+    
     stream = null; 
     videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = null;
+    
+    // Also clear out any uploaded video that might be playing
+    singleVideo.pause();
+    singleVideo.src = "";
+
     document.getElementById('start-camera').disabled = false; 
     document.getElementById('stop-camera').disabled = true; 
 }
-
-document.getElementById('start-camera').onclick = startCamera;  
-document.getElementById('stop-camera').onclick = stopCamera; 
-document.getElementById('switch-camera').onclick = () => { 
-    usingBackCamera = !usingBackCamera; 
-    if (stream) startCamera(); 
-}; 
 
 // --- VR Mode Logic --- 
 function updateVRMode() {
     if (vrMode) {
         document.getElementById('video-container').style.display = 'flex'; 
-        singleVideo.style.display = 'none';
+        
+        // Hide single video safely so the browser doesn't pause its playback
+        singleVideo.style.opacity = '0';
+        singleVideo.style.position = 'absolute';
+        singleVideo.style.pointerEvents = 'none';
+
         document.getElementById('single-canvas-wrapper').style.display = 'none'; 
         document.getElementById('vr-offset-controls').style.display = 'flex'; 
         document.getElementById('toggle-vr').textContent = 'Disable VR View';
     } else {
         document.getElementById('video-container').style.display = 'none'; 
-        singleVideo.style.display = 'block';
+        
+        // Restore single video visibility safely
+        singleVideo.style.opacity = '1';
+        singleVideo.style.position = 'relative';
+        singleVideo.style.pointerEvents = 'auto';
+
         document.getElementById('single-canvas-wrapper').style.display = 'block'; 
         document.getElementById('vr-offset-controls').style.display = 'none'; 
         document.getElementById('toggle-vr').textContent = 'Enable VR View';
@@ -119,48 +131,42 @@ if (uploadBtn && videoUpload) {
     };
 
     // Handle the file selection
-    // Handle the file selection
     videoUpload.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
-
-        // 1. Stop the live camera if it is currently running
+    
         if (stream) {
             stopCamera();
         }
-
-        // 2. Create a local URL for the uploaded video file
+    
+        // 1. Trick the engine into rendering by setting stream to a truthy value
+        stream = "uploaded_video"; 
+    
         const fileURL = URL.createObjectURL(file);
-
-        // 3. Clear the srcObject (camera stream) and set the src (file stream)
-        videoLeft.srcObject = null;
-        videoRight.srcObject = null;
+    
+        // 2. Clear left/right videos to prevent browser decoding crashes
+        videoLeft.srcObject = null; videoLeft.src = "";
+        videoRight.srcObject = null; videoRight.src = "";
         singleVideo.srcObject = null;
-
-        videoLeft.src = fileURL;
-        videoRight.src = fileURL;
+    
+        // 3. Only play on singleVideo. The node engine will automatically copy the processed frames to the VR canvases!
         singleVideo.src = fileURL;
-
-        // 4. Change object-fit to 'contain' so the whole video fits on screen without cropping
-        videoLeft.style.objectFit = "contain";
-        videoRight.style.objectFit = "contain";
         singleVideo.style.objectFit = "contain";
-
-        // 5. Explicitly play the videos and handle browser autoplay policies
-        [videoLeft, videoRight, singleVideo].forEach(vid => {
-            const playPromise = vid.play();
-            
-            if (playPromise !== undefined) {
-                playPromise.catch(error => {
-                    console.warn("Autoplay with audio blocked by browser.", error);
-                    if (typeof showToast === 'function') {
-                        showToast("Click the screen to allow video playback", true);
-                    }
-                });
-            }
-        });
-
-        // 6. Update the UI buttons
+        
+        // 4. Apply contain to canvases so the engine output respects the video's aspect ratio
+        canvasLeft.style.objectFit = "contain";
+        canvasRight.style.objectFit = "contain";
+        canvasSingle.style.objectFit = "contain";
+    
+        // 5. Play the video
+        const playPromise = singleVideo.play();
+        if (playPromise !== undefined) {
+            playPromise.catch(error => {
+                console.warn("Autoplay blocked.", error);
+                if (typeof showToast === 'function') showToast("Click the screen to allow video playback", true);
+            });
+        }
+    
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
     });
