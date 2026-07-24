@@ -1,4 +1,4 @@
 {
-  "version": "1784919495",
-  "title": "Update video handling and preserve aspect ratio"
+  "version": "1784919822",
+  "title": "Fix UV coordinate calculation in vertex shader"
 }
