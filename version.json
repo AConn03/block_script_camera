@@ -1,4 +1,4 @@
 {
-  "version": "1784916245",
-  "title": "Modify video elements for autoplay and UI updates"
+  "version": "1784916265",
+  "title": "Enable WebGL feature flag in globals.js"
 }
