@@ -3,7 +3,6 @@ async function startCamera() {
     try {
         if (stream) stream.getTracks().forEach(t => t.stop());
         
-        // Updated to request audio: true
         stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } }, 
             audio: true 
@@ -14,15 +13,19 @@ async function startCamera() {
         videoRight.src = "";
         singleVideo.src = "";
         
+        // Reset to 'cover' so the live camera fills the screen
+        videoLeft.style.objectFit = "cover";
+        videoRight.style.objectFit = "cover";
+        singleVideo.style.objectFit = "cover";
+        
         videoLeft.srcObject = videoRight.srcObject = singleVideo.srcObject = stream;
         document.getElementById('start-camera').disabled = true; 
         document.getElementById('stop-camera').disabled = false; 
         triggerControlsFade();
     } catch (e) {
-        showToast("Camera error: " + e.message, true);
+        if (typeof showToast === 'function') showToast("Camera error: " + e.message, true);
     }
 }
-
 function stopCamera() {
     if (stream) stream.getTracks().forEach(t => t.stop()); 
     stream = null; 
@@ -116,6 +119,7 @@ if (uploadBtn && videoUpload) {
     };
 
     // Handle the file selection
+    // Handle the file selection
     videoUpload.addEventListener('change', (event) => {
         const file = event.target.files[0];
         if (!file) return;
@@ -137,7 +141,26 @@ if (uploadBtn && videoUpload) {
         videoRight.src = fileURL;
         singleVideo.src = fileURL;
 
-        // 4. Update the UI buttons
+        // 4. Change object-fit to 'contain' so the whole video fits on screen without cropping
+        videoLeft.style.objectFit = "contain";
+        videoRight.style.objectFit = "contain";
+        singleVideo.style.objectFit = "contain";
+
+        // 5. Explicitly play the videos and handle browser autoplay policies
+        [videoLeft, videoRight, singleVideo].forEach(vid => {
+            const playPromise = vid.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("Autoplay with audio blocked by browser.", error);
+                    if (typeof showToast === 'function') {
+                        showToast("Click the screen to allow video playback", true);
+                    }
+                });
+            }
+        });
+
+        // 6. Update the UI buttons
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
     });
