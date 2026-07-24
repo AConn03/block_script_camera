@@ -406,18 +406,42 @@ function applyNodeEffect(node, inputs) {
     };
 
     if (type === 'camera') {
-        if (stream) {
-            if (!window.isCameraPaused) ctx.drawImage(singleVideo, 0, 0, w, h);
+        // Check for an active webcam stream OR an uploaded video source
+        if (stream || (singleVideo && singleVideo.src)) {
+            if (!window.isCameraPaused) {
+                // Calculate dimensions to maintain aspect ratio and fit in frame
+                const vw = singleVideo.videoWidth;
+                const vh = singleVideo.videoHeight;
+                
+                if (vw && vh) {
+                    const scale = Math.min(w / vw, h / vh);
+                    const drawW = vw * scale;
+                    const drawH = vh * scale;
+                    const dx = (w - drawW) / 2;
+                    const dy = (h - drawH) / 2;
+                    
+                    // Fill background and draw centered, scaled video
+                    ctx.fillStyle = '#000'; 
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(singleVideo, dx, dy, drawW, drawH);
+                } else {
+                    // Fallback before metadata loads
+                    ctx.drawImage(singleVideo, 0, 0, w, h);
+                }
+            }
         } else {
             ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
             ctx.fillStyle = '#666'; ctx.font = '24px Arial'; ctx.textAlign = 'center'; ctx.fillText('Camera Off', w/2, h/2);
         }
         setUnifiedOutCanvas(canvas); return;
-    } 
+    }
     
     if (type === 'screen') {
         const renderTarget = inputs['render'] instanceof HTMLCanvasElement ? inputs['render'] : null;
-        if (stream) renderFinalOutput(renderTarget);
+        // Ensure rendering triggers for both webcam streams and uploaded videos
+        if (stream || (singleVideo && singleVideo.src)) {
+            renderFinalOutput(renderTarget);
+        }
         return;
     }
 
