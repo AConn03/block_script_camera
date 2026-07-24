@@ -124,15 +124,20 @@ if (videoUpload) {
         videoLeft.srcObject = null;
         videoRight.srcObject = null;
         singleVideo.srcObject = null;
-
         videoLeft.src = fileURL;
         videoRight.src = fileURL;
         singleVideo.src = fileURL;
         
-        // 4. Unmute the videos so the uploaded file retains its audio
-        videoLeft.muted = false;
-        videoRight.muted = false;
-        singleVideo.muted = false;
+        // 4. Force autoplay securely and retain audio when possible
+        [videoLeft, videoRight, singleVideo].forEach(vid => {
+            vid.muted = false; // Attempt to play with audio
+            vid.play().catch(err => {
+                // If the browser's strict policy blocks unmuted autoplay, mute and retry
+                console.warn("Browser blocked unmuted autoplay. Muting to ensure playback.");
+                vid.muted = true;
+                vid.play();
+            });
+        });
 
         // 5. Update the UI buttons
         document.getElementById('start-camera').disabled = false;
