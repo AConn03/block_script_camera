@@ -4,44 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Block Script Camera</title>
-    
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
     <div id="updateBanner" style="display: none; width: 100%; background: #10b981; color: white; text-align: center; padding: 6px 10px; font-size: 11px; font-weight: bold; cursor: pointer; letter-spacing: 0.5px; z-index: 10000; border-bottom: 1px solid rgba(255,255,255,0.15); transition: background 0.2s;" onclick="location.reload();" onmouseover="this.style.background='#059669'" onmouseout="this.style.background='#10b981'">
         Update is Available
     </div>
-
     <nav id="top-nav">
         <button class="nav-btn active" id="nav-camera">Camera View</button>
         <button class="nav-btn" id="nav-builder">Script Builder</button>
     </nav>
-
+    
     <div id="view-camera" class="view-container active">
         <div id="video-container">
             <div class="video-wrapper" id="wrapper-left">
-                <video id="video-left" class="video-feed" autoplay playsinline loop></video>
+                <!-- Added 'muted' to ensure autoplay works seamlessly on mobile devices -->
+                <video id="video-left" class="video-feed" autoplay playsinline muted></video>
                 <div class="canvas-container"><canvas id="canvas-left" class="effect-canvas"></canvas></div>
             </div>
             <div class="video-wrapper" id="wrapper-right">
-                <video id="video-right" class="video-feed" autoplay playsinline loop></video>
+                <video id="video-right" class="video-feed" autoplay playsinline muted></video>
                 <div class="canvas-container"><canvas id="canvas-right" class="effect-canvas"></canvas></div>
             </div>
         </div>
-
-        <video id="single-video" autoplay playsinline loop></video>
+        <video id="single-video" autoplay playsinline muted></video>
         <div class="canvas-container" id="single-canvas-wrapper"><canvas id="canvas-single" class="effect-canvas"></canvas></div>
         
         <div id="ui-layer"></div>
-
         <div id="controls-panel">
             <div class="controls-row">
                 <button id="start-camera">Start Camera</button>
                 <button id="stop-camera" disabled>Stop Camera</button>
                 <button id="switch-camera">Switch Camera</button>
                 <button id="toggle-vr">Enable VR View</button>
-                <input type="file" id="video-upload" accept="video/*" style="display: none;">
-                <button id="upload-btn">Upload Video</button>
             </div>
             <div class="controls-row" id="vr-offset-controls" style="display: none;">
                 <button id="offset-in">Move Apart</button>
@@ -55,14 +50,13 @@
     <div id="view-builder" class="view-container">
         <div id="builder-layout">
             <div id="sidebar-overlay"></div>
-
             <div class="sidebar" id="palette-panel">
                 <div class="panel-title">Categories</div>
                 <div id="palette-tabs" class="palette-tabs"></div>
                 <hr style="border-color: rgba(255,255,255,0.05); margin: 5px 0 10px 0;">
                 <div id="blocks-palette" style="display: flex; flex-direction: column; gap: 8px; overflow-y: auto; flex: 1; padding-bottom: 20px;"></div>
             </div>
-
+            
             <div id="workspace-viewport">
                 <div id="toast-alert"></div>
                 <div id="workspace-inner">
@@ -70,15 +64,13 @@
                     <div id="nodes-container"></div>
                 </div>
             </div>
-
+            
             <div id="builder-preview"><canvas id="preview-canvas"></canvas></div>
-
             <div id="mobile-bottom-bar">
                 <button id="btn-toggle-palette">➕ Add Node</button>
                 <button id="layout-script-btn-main" onclick="window.autoLayoutNodes()">Auto Tree Layout</button>
-                <button id="btn-toggle-scripts">💾 Scripts</button>
+                <button id="btn-toggle-scripts">📁 Scripts</button>
             </div>
-
             <div class="sidebar" id="scripts-panel">
                 <div class="panel-title">Scripts</div>
                 <button id="save-script-btn" style="width: 100%; background: #3b82f6;">Save Graph</button>
@@ -149,6 +141,5 @@
     <script src="js/camera.js"></script>
     <script src="js/ui.js"></script>
     <script src="js/updater.js"></script>
-
 </body>
 </html>
