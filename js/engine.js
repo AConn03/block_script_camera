@@ -406,28 +406,11 @@ function applyNodeEffect(node, inputs) {
     };
 
     if (type === 'camera') {
-        // Check for an active webcam stream OR an uploaded video source
         if (stream || (singleVideo && singleVideo.src)) {
             if (!window.isCameraPaused) {
-                // Calculate dimensions to maintain aspect ratio and fit in frame
-                const vw = singleVideo.videoWidth;
-                const vh = singleVideo.videoHeight;
-                
-                if (vw && vh) {
-                    const scale = Math.min(w / vw, h / vh);
-                    const drawW = vw * scale;
-                    const drawH = vh * scale;
-                    const dx = (w - drawW) / 2;
-                    const dy = (h - drawH) / 2;
-                    
-                    // Fill background and draw centered, scaled video
-                    ctx.fillStyle = '#000'; 
-                    ctx.fillRect(0, 0, w, h);
-                    ctx.drawImage(singleVideo, dx, dy, drawW, drawH);
-                } else {
-                    // Fallback before metadata loads
-                    ctx.drawImage(singleVideo, 0, 0, w, h);
-                }
+                // The engine already resizes the canvas exactly to singleVideo.videoWidth/Height.
+                // Standard drawing naturally maintains the perfect aspect ratio.
+                ctx.drawImage(singleVideo, 0, 0, w, h);
             }
         } else {
             ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
