@@ -421,7 +421,27 @@ function applyNodeEffect(node, inputs) {
         ctx.imageSmoothingEnabled = false; ctx.drawImage(unifiedInCanvas, 0, 0, w/size, h/size); ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
         setUnifiedOutCanvas(canvas); return;
     }
-
+    const filterTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'hue_shift', 'saturation'];
+    
+    if (filterTypes.includes(type)) {
+        let filterString = '';
+        
+        if (type === 'grayscale') filterString = `grayscale(${getP('amount', 100)}%)`;
+        else if (type === 'invert') filterString = `invert(${getP('amount', 100)}%)`;
+        else if (type === 'brightness') filterString = `brightness(${100 + getP('amount', 0)}%)`; // Adjust math to CSS percentage
+        else if (type === 'contrast') filterString = `contrast(${100 + getP('amount', 0)}%)`; // Adjust math to CSS percentage
+        else if (type === 'hue_shift') filterString = `hue-rotate(${getP('deg', 0)}deg)`;
+        else if (type === 'saturation') filterString = `saturate(${getP('amount', 100)}%)`;
+    
+        // Apply the hardware-accelerated filter
+        ctx.filter = filterString;
+        ctx.drawImage(unifiedInCanvas, 0, 0);
+        ctx.filter = 'none'; // Always reset for the next node!
+        
+        setUnifiedOutCanvas(canvas);
+        return; // Exit early so it doesn't hit the slow pixel loop
+    }
+    
     const cpuTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'hue_shift', 'saturation', 'tint', 'hsv_pass', 'bandpass', 'chroma', 'mask', 'edge'];
     if (cpuTypes.includes(type)) {
         const inCtx = unifiedInCanvas.getContext('2d', {willReadFrequently: true});
@@ -462,9 +482,19 @@ function applyNodeEffect(node, inputs) {
             }
         }
         else if (type === 'tint') {
-            const rF = getP('r', 255) / 255, gF = getP('g', 255) / 255, bF = getP('b', 255) / 255;
-            for (let i=0; i<len; i+=4) { if (data[i+3] === 0) continue; data[i]*=rF; data[i+1]*=gF; data[i+2]*=bF; }
-        } 
+            const r = getP('r', 255);
+            const g = getP('g', 255);
+            const b = getP('b', 255);
+            
+            ctx.drawImage(unifiedInCanvas, 0, 0);
+            ctx.globalCompositeOperation = 'multiply';
+            ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+            ctx.fillRect(0, 0, w, h);
+            ctx.globalCompositeOperation = 'source-over'; // Reset
+            
+            setUnifiedOutCanvas(canvas);
+            return;
+        }
         else if (type === 'hsv_pass') {
             const targetHue = getP('target', 0) / 360, tolHue = getP('tol', 30) / 360, targetSat = getP('s_target', 100) / 100, tolSat = getP('s_tol', 75) / 100;
             const targetVal = getP('v_target', 100) / 100, tolVal = getP('v_tol', 100) / 100, mode = params.mode || 'transparent';
