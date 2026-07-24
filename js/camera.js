@@ -107,6 +107,7 @@ if (uploadBtn) {
 }
 
 // Handle the file selection
+// Handle the file selection
 if (videoUpload) {
     videoUpload.addEventListener('change', (event) => {
         const file = event.target.files[0];
@@ -128,18 +129,22 @@ if (videoUpload) {
         videoRight.src = fileURL;
         singleVideo.src = fileURL;
         
-        // 4. Force autoplay securely and retain audio when possible
+        // 4. PRESERVE ASPECT RATIO: Override CSS to strictly 'contain' the media
+        [videoLeft, videoRight, singleVideo, canvasLeft, canvasRight, canvasSingle].forEach(el => {
+            if (el) el.style.objectFit = 'contain';
+        });
+
+        // 5. Force autoplay securely and retain audio when possible
         [videoLeft, videoRight, singleVideo].forEach(vid => {
             vid.muted = false; // Attempt to play with audio
             vid.play().catch(err => {
-                // If the browser's strict policy blocks unmuted autoplay, mute and retry
                 console.warn("Browser blocked unmuted autoplay. Muting to ensure playback.");
                 vid.muted = true;
                 vid.play();
             });
         });
 
-        // 5. Update the UI buttons
+        // 6. Update the UI buttons
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
     });
