@@ -118,7 +118,7 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
             </div>`;
         }
     }
-    
+
     if (def.params) def.params.forEach(p => {
         const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
         const isDrop = p.type === 'number' || p.type === 'range';
@@ -283,6 +283,17 @@ workspaceViewport.addEventListener('pointerdown', (e) => {
     }
 });
 
+function getViewportCenterCoordinates() {
+    const cx = (workspaceViewport.scrollLeft + workspaceViewport.clientWidth / 2) / currentZoom;
+    const cy = (workspaceViewport.scrollTop + workspaceViewport.clientHeight / 2) / currentZoom;
+    
+    // Subtracted 120px and 60px to offset half the width and height of a standard node
+    return { 
+        x: cx - 120, 
+        y: cy - 60 
+    };
+}
+
 function handlePointerRelease(e) {
     activePointers.delete(e.pointerId); if (activePointers.size < 2) lastPinchDist = null;
     if (paletteDragItem) {
@@ -382,12 +393,40 @@ function renderPalette(category) {
     });
 }
 
+// js/ui.js -> Replace startDragFromPaletteActual
+
 function startDragFromPaletteActual(e, type, params = null, capture = true) {
-    if (isMobile()) closeAllPanels(); const wsRect = workspaceInner.getBoundingClientRect(), x = (e.clientX - wsRect.left) / currentZoom, y = (e.clientY - wsRect.top) / currentZoom;
-    const newNodeId = createNode(type, x - 120, y - 20, null, params);
-    if (newNodeId) { 
-        draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 120 * currentZoom; dragOffsetY = 20 * currentZoom; el.style.zIndex = 5; el.classList.add('drag-active'); 
-        if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } 
+    if (isMobile()) closeAllPanels(); 
+    
+    let x, y;
+    const sidebarRight = palettePanel.offsetWidth;
+
+    // Check if the action was a click on the palette or released over the sidebar
+    if (!capture || e.clientX <= sidebarRight) {
+        const center = getViewportCenterCoordinates();
+        x = center.x;
+        y = center.y;
+    } else {
+        // Dragged directly out onto the canvas board
+        const wsRect = workspaceInner.getBoundingClientRect();
+        x = (e.clientX - wsRect.left) / currentZoom - 120;
+        y = (e.clientY - wsRect.top) / currentZoom - 20;
+    }
+
+    const newNodeId = createNode(type, x, y, null, params);
+    
+    if (newNodeId) {          
+        draggedNode = newNodeId; 
+        const el = nodes[newNodeId].domElement; 
+        dragOffsetX = 120 * currentZoom; 
+        dragOffsetY = 20 * currentZoom; 
+        el.style.zIndex = 5; 
+        el.classList.add('drag-active');          
+        
+        if (capture) { 
+            activePointers.set(e.pointerId, e); 
+            try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} 
+        }      
     }
 }
 
