@@ -105,9 +105,24 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
     
     if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 24px; width: 100%; border-radius: 6px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);"></div></div>`;
 
-    el.innerHTML = `<div class="node-header">${headerLabel}<div class="node-actions">
-        <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
-        <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button></div></div><div class="node-body">${bodyHtml}</div>`;
+    el.innerHTML = `
+    <div class="node-preview-popup">
+        <canvas class="node-preview-canvas"></canvas>
+    </div>
+    <div class="node-header">
+        ${headerLabel}
+        <div class="node-actions">
+            <button class="node-btn preview-btn" onclick="toggleNodePreview('${id}')" title="Toggle Video Preview">
+                <svg width="14" height="12" viewBox="0 0 16 14" fill="currentColor" style="vertical-align: middle;">
+                    <path d="M1 2C1 0.9 1.9 0 3 0H13C14.1 0 15 0.9 15 2V10C15 11.1 14.1 12 13 12H9V13H11V14H5V13H7V12H3C1.9 12 1 11.1 1 10V2ZM6 3.5V9.5L11 6.5L6 3.5Z"/>
+                </svg>
+            </button>
+            <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">📋</button>
+            <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">🗑️</button>
+        </div>
+    </div>
+    <div class="node-body">${bodyHtml}</div>
+`;
 
     nodesContainer.appendChild(el); nodes[id] = { id, type, params, bindings: restoredBindings || {}, domElement: el, outputData: {} };
     if (def.params) def.params.forEach(p => renderParamUI(id, p.id));
@@ -397,6 +412,18 @@ document.getElementById('confirm-save').onclick = () => {
 };
 
 function updateLabels() { document.getElementById('active-script-label').textContent = `Active Script: ${activeScriptName}`; }
+
+window.toggleNodePreview = function(id) {
+    const node = nodes[id];
+    if (!node) return;
+    
+    node.showPreview = !node.showPreview;
+    const popup = node.domElement.querySelector('.node-preview-popup');
+    const btn = node.domElement.querySelector('.preview-btn');
+    
+    if (popup) popup.classList.toggle('active', !!node.showPreview);
+    if (btn) btn.classList.toggle('active', !!node.showPreview);
+};
 
 window.autoLayoutNodes = function() {
     if (Object.keys(nodes).length === 0) return;
