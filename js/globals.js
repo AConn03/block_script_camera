@@ -66,6 +66,8 @@ const NODE_DEFS = {
     math_tan: { label: 'Tan', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
     math_pi: { label: 'Pi', category: 'Math', inPorts: [], outPorts: ['out'] },
     math_log: { label: 'Log', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:1}] },
+    screen_width: { label: 'Screen Width', category: 'Math', inPorts: [], outPorts: ['val'] },
+    screen_height: { label: 'Screen Height', category: 'Math', inPorts: [], outPorts: ['val']},
     time_sec: { label: 'Time (sec)', category: 'Math', inPorts: [], outPorts: ['val'] },
     time_date: { label: 'Date (day)', category: 'Math', inPorts: [], outPorts: ['val'] },
     math_pos_convert: { label: 'Pos % <-> px', category: 'Math', inPorts: [], outPorts: ['x', 'y'], params: [{id: 'mode', label: 'Mode', type: 'select', options: ['% to px', 'px to %'], default: '% to px'}, {id: 'x_in', label: 'X In', type: 'number', default: 50}, {id: 'y_in', label: 'Y In', type: 'number', default: 50}] },

@@ -361,7 +361,7 @@ function evaluateFrame() {
                     pCtx.clearRect(0, 0, node.previewCanvas.width, node.previewCanvas.height);
                 }
             }
-            
+
         } catch (err) {
             taintedNodes.add(nodeId);
             node.domElement.classList.add('error');
@@ -473,7 +473,8 @@ function applyNodeEffect(node, inputs) {
         }
         return;
     }
-    
+    if (type === 'screen_width') { node.outputData['val'] = videoWidth || 0; return;}
+    if (type === 'screen_height') { node.outputData['val'] = videoHeight || 0; return;}
     if (type === 'time_sec') { node.outputData['val'] = Date.now() / 1000; return; }
     if (type === 'time_date') { node.outputData['val'] = new Date().getDate(); return; }
     
