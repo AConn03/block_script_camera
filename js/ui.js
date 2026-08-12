@@ -106,6 +106,8 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
     if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 24px; width: 100%; border-radius: 6px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);"></div></div>`;
 
     el.innerHTML = `<div class="node-header">${headerLabel}<div class="node-actions">
+        <!-- New Preview Button added here -->
+        <button class="node-btn preview-toggle" onclick="toggleNodePreview('${id}')" title="Toggle Node Preview" style="font-size:12px;">‣</button>
         <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
         <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button></div></div><div class="node-body">${bodyHtml}</div>`;
 
@@ -152,10 +154,78 @@ window.updateParam = function(nodeId, paramId, val) {
 };
 
 window.deleteNode = function(id) {
-    if (!nodes[id]) return; nodes[id].domElement.remove(); delete nodes[id];
+    if (!nodes[id]) return;
+    if (nodes[id].previewCanvas) nodes[id].previewCanvas.remove(); // Clean up floating preview canvas
+    nodes[id].domElement.remove();
+    delete nodes[id];
     const uiBtn = document.getElementById(`uibtn-${id}`); if (uiBtn) uiBtn.remove();
     wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); rebuildGraphOrder(); drawWires();
 }
+
+// Creates or retrieves a top-level overlay container above all node cards
+function getPreviewLayer() {
+    let layer = document.getElementById('preview-layer');
+    if (!layer) {
+        layer = document.createElement('div');
+        layer.id = 'preview-layer';
+        layer.style.position = 'absolute';
+        layer.style.top = '0';
+        layer.style.left = '0';
+        layer.style.width = '100%';
+        layer.style.height = '100%';
+        layer.style.pointerEvents = 'none'; // Allows click-through to workspace/nodes
+        layer.style.zIndex = '500'; // Sits strictly above all nodes (z-index 2–5)
+        document.getElementById('workspace-inner').appendChild(layer);
+    }
+    return layer;
+}
+
+// Syncs preview window coordinates to match its target node
+window.updatePreviewPosition = function(node) {
+    if (!node || !node.previewCanvas || !node.showPreview) return;
+    const nodeEl = node.domElement;
+    const x = parseFloat(nodeEl.style.left) || 0;
+    const y = parseFloat(nodeEl.style.top) || 0;
+    const width = nodeEl.offsetWidth || 240;
+
+    node.previewCanvas.style.left = `${x + (width / 2)}px`;
+    node.previewCanvas.style.top = `${y - 10}px`;
+    node.previewCanvas.style.transform = 'translate(-50%, -100%)';
+};
+
+window.toggleNodePreview = function(id) {
+    const node = nodes[id];
+    if (!node) return;
+    
+    node.showPreview = !node.showPreview;
+    const btn = node.domElement.querySelector('.preview-toggle');
+    
+    if (node.showPreview) {
+        btn.style.background = '#3b82f6';
+        
+        if (!node.previewCanvas) {
+            node.previewCanvas = document.createElement('canvas');
+            node.previewCanvas.className = 'node-preview-canvas';
+            node.previewCanvas.style.position = 'absolute';
+            node.previewCanvas.style.width = '180px';
+            node.previewCanvas.style.background = '#050505';
+            node.previewCanvas.style.border = '2px solid #3b82f6';
+            node.previewCanvas.style.borderRadius = '6px';
+            node.previewCanvas.style.boxShadow = '0 5px 15px rgba(0,0,0,0.6)';
+            node.previewCanvas.style.pointerEvents = 'none';
+        }
+        
+        // Append to overlay layer instead of node.domElement
+        getPreviewLayer().appendChild(node.previewCanvas);
+        node.previewCanvas.style.display = 'block';
+        updatePreviewPosition(node);
+    } else {
+        btn.style.background = '';
+        if (node.previewCanvas) {
+            node.previewCanvas.style.display = 'none';
+        }
+    }
+};
 
 window.duplicateNode = function(id) {
     const node = nodes[id]; if (!node) return;
@@ -175,7 +245,7 @@ workspaceViewport.addEventListener('wheel', (e) => { e.preventDefault(); applyZo
 window.addEventListener('pointerdown', (e) => { activePointers.set(e.pointerId, e); });
 window.addEventListener('blur', () => {
     activePointers.clear(); lastPinchDist = null; isPanning = false; workspaceViewport.classList.remove('panning'); draggingWire = null; paletteDragItem = null;
-    if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; }
+    if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = nodes[draggedNode].showPreview ? 4 : 4; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; }
     drawWires();
 });
 
@@ -191,7 +261,7 @@ function handlePointerRelease(e) {
     activePointers.delete(e.pointerId); if (activePointers.size < 2) lastPinchDist = null;
     if (paletteDragItem) {
         startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params, false); 
-        if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null;}
+        if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 4; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null;}
         if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); try { workspaceViewport.releasePointerCapture(e.pointerId); } catch(err){} }
         paletteDragItem = null;
     }
@@ -249,12 +319,12 @@ window.addEventListener('pointermove', (e) => {
     
     if (draggedNode && nodes[draggedNode]) {
         const el = nodes[draggedNode].domElement, wsRect = workspaceInner.getBoundingClientRect();
-        el.style.left = `${Math.max(0, (e.clientX - dragOffsetX - wsRect.left) / currentZoom)}px`; el.style.top = `${Math.max(0, (e.clientY - dragOffsetY - wsRect.top) / currentZoom)}px`;
-        if (nodes[draggedNode].type === 'var_get') {
-            const targetEl = document.elementFromPoint(e.clientX, e.clientY), droppable = targetEl ? targetEl.closest('.param-droppable') : null;
-            document.querySelectorAll('.param-droppable.drag-over').forEach(el => el.classList.remove('drag-over'));
-            if (droppable) droppable.classList.add('drag-over');
-        }
+        el.style.left = `${Math.max(0, (e.clientX - dragOffsetX - wsRect.left) / currentZoom)}px`; 
+        el.style.top = `${Math.max(0, (e.clientY - dragOffsetY - wsRect.top) / currentZoom)}px`;
+        
+        // Sync preview popup position during drag
+        updatePreviewPosition(nodes[draggedNode]);
+        
         drawWires();
     }
     if (draggingWire) { draggingWire.mouseX = e.clientX; draggingWire.mouseY = e.clientY; requestAnimationFrame(drawWires); }
@@ -419,11 +489,13 @@ window.autoLayoutNodes = function() {
 
     let columns = {};
     let maxLevel = 0;
-    Object.keys(nodes).forEach(id => {
-        let lvl = levels[id];
-        if (lvl > maxLevel) maxLevel = lvl;
-        if (!columns[lvl]) columns[lvl] = [];
-        columns[lvl].push(id);
+    Object.keys(coordinates).forEach(id => {
+        const node = nodes[id];
+        if (node) {
+            node.domElement.style.left = `${coordinates[id].x}px`;
+            node.domElement.style.top = `${coordinates[id].y}px`;
+            if (typeof updatePreviewPosition === 'function') updatePreviewPosition(node);
+        }
     });
 
     // Anchored to the new infinite canvas center
@@ -552,3 +624,4 @@ document.getElementById('nav-builder').onclick = function() {
 
 // --- Boot ---
 initBuilder(); updateVRMode(); window.addEventListener('resize', drawWires); renderLoop();
+toggleNodePreview

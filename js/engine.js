@@ -341,6 +341,27 @@ function evaluateFrame() {
             applyNodeEffect(node, inputs);
             node.domElement.classList.remove('error', 'not-run');
             hideErrorIcon(nodeId);
+
+            if (node.showPreview && node.previewCanvas) {
+                // Grab the output canvas. Fallback from 'video' to 'out' to the node's internal canvas
+                const outData = node.outputData['video'] || node.outputData['out'] || node.canvas;
+                
+                // SAFEGUARD: Only draw if outData is definitively an HTMLCanvasElement
+                // This prevents the specific "Cannot read properties of undefined (reading 'drawImage')" error
+                if (outData instanceof HTMLCanvasElement) {
+                    if (node.previewCanvas.width !== outData.width) {
+                        node.previewCanvas.width = outData.width;
+                        node.previewCanvas.height = outData.height;
+                    }
+                    const pCtx = node.previewCanvas.getContext('2d');
+                    pCtx.drawImage(outData, 0, 0);
+                } else {
+                    // Clear the preview safely if the port disconnected mid-run
+                    const pCtx = node.previewCanvas.getContext('2d');
+                    pCtx.clearRect(0, 0, node.previewCanvas.width, node.previewCanvas.height);
+                }
+            }
+            
         } catch (err) {
             taintedNodes.add(nodeId);
             node.domElement.classList.add('error');
