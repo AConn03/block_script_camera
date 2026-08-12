@@ -281,33 +281,33 @@ function evaluateFrame() {
     if (evalOrder.length === 0) return; 
     if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
     
-    Object.values(nodes).forEach(node => {
-        if (node.showPreview) {
-            const previewCanvas = node.domElement.querySelector('.node-preview-canvas');
-            if (!previewCanvas) return;
-            
-            // Grab source canvas from internal canvas or output data
-            const srcCanvas = node.canvas || 
-                (node.outputData && (
-                    node.outputData['out'] || 
-                    node.outputData['video'] || 
-                    Object.values(node.outputData).find(v => v instanceof HTMLCanvasElement)
-                ));
+        Object.values(nodes).forEach(node => {
+            if (node.showPreview) {
+                const previewCanvas = node.domElement.querySelector('.node-preview-canvas');
+                if (!previewCanvas) return;
                 
-            // Ensure source exists and is a valid canvas with real dimensions
-            if (srcCanvas && srcCanvas instanceof HTMLCanvasElement && srcCanvas.width > 0 && srcCanvas.height > 0) {
-                if (previewCanvas.width !== srcCanvas.width) previewCanvas.width = srcCanvas.width;
-                if (previewCanvas.height !== srcCanvas.height) previewCanvas.height = srcCanvas.height;
-                
-                // Acquire context directly from the preview canvas element safely
-                const pCtx = previewCanvas.getContext('2d');
-                if (pCtx) {
-                    pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
-                    pCtx.drawImage(srcCanvas, 0, 0);
+                // Grab source canvas from internal canvas or output data
+                const srcCanvas = node.canvas || 
+                    (node.outputData && (
+                        node.outputData['out'] || 
+                        node.outputData['video'] || 
+                        Object.values(node.outputData).find(v => v instanceof HTMLCanvasElement)
+                    ));
+                    
+                // Ensure source exists and is a valid canvas with real dimensions
+                if (srcCanvas && srcCanvas instanceof HTMLCanvasElement && srcCanvas.width > 0 && srcCanvas.height > 0) {
+                    if (previewCanvas.width !== srcCanvas.width) previewCanvas.width = srcCanvas.width;
+                    if (previewCanvas.height !== srcCanvas.height) previewCanvas.height = srcCanvas.height;
+                    
+                    // Acquire context directly from the preview canvas element safely
+                    const pCtx = previewCanvas.getContext('2d');
+                    if (pCtx) {
+                        pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                        pCtx.drawImage(srcCanvas, 0, 0);
+                    }
                 }
             }
-        }
-    });
+        });
     
     taintedNodes.clear();
     for (let nodeId of evalOrder) {
