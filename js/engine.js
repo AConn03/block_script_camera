@@ -406,15 +406,29 @@ function applyNodeEffect(node, inputs) {
     }
     
     const getVal = (id, defVal) => {
-        let val;
-        if (inputs[id] !== null && inputs[id] !== undefined) val = inputs[id];
-        else if (node.bindings && node.bindings[id]) val = window.userVars[node.bindings[id]] ?? defVal;
-        else val = params[id] ?? defVal;
+        const isConnected = inputs[id] !== null && inputs[id] !== undefined;
+        const isBound = node.bindings && node.bindings[id];
         
-        const lbl = document.getElementById(`lbl-${node.id}-${id}`);
-        if (lbl && typeof val !== 'object') {
-            let fmt = typeof val === 'number' ? (Number.isInteger(val) ? val : Math.round(val*100)/100) : val;
-            if (lbl.dataset.last !== String(fmt)) { lbl.textContent = fmt; lbl.dataset.last = fmt; }
+        let val;
+        if (isConnected) val = inputs[id];
+        else if (isBound) val = window.userVars[node.bindings[id]] ?? defVal;
+        else val = params[id] ?? defVal;
+                
+        const inputEl = document.getElementById(`input-${node.id}-${id}`);
+        if (inputEl) {
+            if (isConnected || isBound) {
+                inputEl.disabled = true;
+                const fmt = typeof val === 'number' ? (Number.isInteger(val) ? val : Math.round(val * 100) / 100) : val;
+                if (document.activeElement !== inputEl) {
+                    inputEl.value = fmt;
+                }
+            } else {
+                inputEl.disabled = false;
+                // Restore static input value when disconnected
+                if (document.activeElement !== inputEl) {
+                    inputEl.value = params[id] ?? defVal;
+                }
+            }
         }
         return val;
     };
@@ -538,12 +552,16 @@ function applyNodeEffect(node, inputs) {
             btn.onpointerdown = () => { node.clicked = true; };
             document.getElementById('ui-layer').appendChild(btn);
         }
-        let textVal = getVal('text', 'Button'), xVal = getP('x', 50), yVal = getP('y', 80), wVal = getP('w', 120), hVal = getP('h', 40);
+        let vw = videoWidth || 1, vh = videoHeight || 1;
+        let textVal = getVal('text', 'Button'), xVal = getP('x', vw / 2), yVal = getP('y', vh * 0.8), wVal = getP('w', 120), hVal = getP('h', 40);
         if (btn.innerText != textVal) btn.innerText = textVal;
-        if (btn.dataset.x != xVal) { btn.style.left = `${xVal}%`; btn.dataset.x = xVal; }
-        if (btn.dataset.y != yVal) { btn.style.top = `${yVal}%`; btn.dataset.y = yVal; }
-        if (btn.dataset.w != wVal) { btn.style.width = `${wVal}px`; btn.dataset.w = wVal; }
-        if (btn.dataset.h != hVal) { btn.style.height = `${hVal}px`; btn.dataset.h = hVal; }
+
+        // Convert incoming pixel X/Y into CSS percentages for screen overlay
+        const xPct = (xVal / vw) * 100;
+        const yPct = (yVal / vh) * 100;
+
+        if (btn.dataset.x != xPct) { btn.style.left = `${xPct}%`; btn.dataset.x = xPct; }
+        if (btn.dataset.y != yPct) { btn.style.top = `${yPct}%`; btn.dataset.y = yPct; }
         
         if (node.clicked) { node.outputData['exec'] = true; node.clicked = false; } else { node.outputData['exec'] = false; }
         return;
@@ -559,22 +577,24 @@ function applyNodeEffect(node, inputs) {
     }
 
     if (type === 'get_position') {
-        if (!unifiedInCanvas) { 
-             node.outputData['x'] = 50; node.outputData['y'] = 50; node.outputData['found'] = false; 
-             return; 
-         }
-         
-        const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
+        let vw = videoWidth || 1, vh = videoHeight || 1;
         
-        // Optimizing get_position by scaling down first to avoid slow 1080p array iterations
+        if (!unifiedInCanvas) {   
+            node.outputData['x'] = vw / 2; 
+            node.outputData['y'] = vh / 2; 
+            node.outputData['found'] = false;   
+            return; 
+        }
+                
+        const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
         const downscaleW = 64;
         const downscaleH = 64;
         if (!node.downCanvas) node.downCanvas = createInternalCanvas(downscaleW, downscaleH);
         node.downCanvas.getContext('2d').drawImage(unifiedInCanvas, 0, 0, downscaleW, downscaleH);
-        
+                
         const data = node.downCanvas.getContext('2d', {willReadFrequently: true}).getImageData(0,0,downscaleW,downscaleH).data;
         let sumX = 0, sumY = 0, count = 0;
-        
+                
         for (let i = 0; i < data.length; i += 4) {
             if (data[i+3] > 0 && (data[i] > 127 || data[i+1] > 127 || data[i+2] > 127)) {
                 const pixelIndex = (i / 4) | 0;
@@ -583,16 +603,17 @@ function applyNodeEffect(node, inputs) {
                 count++;
             }
         }
-        
+                
         if (count > 0) {
-            node.outputData['x'] = (sumX / count) / downscaleW * 100; 
-            node.outputData['y'] = (sumY / count) / downscaleH * 100; 
+            // Output raw pixel coordinates instead of percentages
+            node.outputData['x'] = ((sumX / count) / downscaleW) * vw; 
+            node.outputData['y'] = ((sumY / count) / downscaleH) * vh; 
             node.outputData['found'] = true;
-        } else { 
-             node.outputData['x'] = 50; 
-             node.outputData['y'] = 50; 
-             node.outputData['found'] = false; 
-         }
+        } else {   
+            node.outputData['x'] = vw / 2;   
+            node.outputData['y'] = vh / 2;   
+            node.outputData['found'] = false;   
+        }
         return;
     }
     

@@ -118,22 +118,24 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
             </div>`;
         }
     }
+    
     if (def.params) def.params.forEach(p => {
         const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
         const isDrop = p.type === 'number' || p.type === 'range';
         bodyHtml += `<div class="param-group ${isDrop ? 'param-droppable' : ''}" data-node="${id}" data-param="${p.id}">
             <div class="port port-in param-port" data-node="${id}" data-port="${p.id}"></div>
-            <div class="param-header"><span>${p.label}</span><span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span></div>
+            <div class="param-header"><span>${p.label}</span></div>
             <div class="param-ui" id="pui-${id}-${p.id}"></div>
         </div>`;
     });
+
     if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 24px; width: 100%; border-radius: 6px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);"></div></div>`;
     
     el.innerHTML = `<div class="node-header">${headerLabel}<div class="node-actions">
         <button class="node-btn preview-toggle" onclick="toggleNodePreview('${id}')" title="Toggle Node Preview" style="font-size:12px;">‣</button>
         <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
         <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button></div></div><div class="node-body">${bodyHtml}</div>`;
-        
+
     nodesContainer.appendChild(el); nodes[id] = { id, type, params, bindings: restoredBindings || {}, domElement: el, outputData: {} };
     if (def.params) def.params.forEach(p => renderParamUI(id, p.id));
     if (type === 'hsv_pass') updateSwatch(id);

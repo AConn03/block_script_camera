@@ -45,7 +45,7 @@ const NODE_DEFS = {
     accumulate: { label: 'Long Exposure', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{ id: 'frames', label: 'Frames', type: 'range', min: 2, max: 60, default: 15 }, { id: 'mode', label: 'Blend', type: 'select', options: ['average', 'lighten', 'darken'], default: 'average' }] },
     blend: { label: 'Blend', category: 'Image Processing', inPorts: ['bg', 'fg'], outPorts: ['out'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' }, { id: 'mix', label: 'Amount', type: 'range', min: 0, max: 100, default: 50 }] },
     get_position: { label: 'Get Position (Mask)', category: 'Image Processing', inPorts: ['in'], outPorts: ['x', 'y', 'found'] },
-    draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [{id: 'x', label:'X', type:'number', default:50}, {id:'y', label:'Y', type:'number', default:50}] },
+    draw_point: { label: 'Draw Point', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [ {id: 'x', label:'X (px)', type:'number', default: 320}, {id: 'y', label:'Y (px)', type:'number', default: 240} ] },
     
     on_start: { label: 'On Start', category: 'Triggers', inPorts: [], outPorts: ['exec'] },
     on_frame: { label: 'On Frame', category: 'Triggers', inPorts: [], outPorts: ['exec'] },
