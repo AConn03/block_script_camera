@@ -1,21 +1,32 @@
 // --- UI Helpers ---
 function isMobile() { return window.innerWidth <= 768; }
-function closeAllPanels() { palettePanel.classList.remove('open'); scriptsPanel.classList.remove('open'); sidebarOverlay.classList.remove('active'); }
+
+function closeAllPanels() {
+    palettePanel.classList.remove('open');
+    scriptsPanel.classList.remove('open');
+    sidebarOverlay.classList.remove('active');
+}
+
 function centerWorkspace() {
     if (workspaceViewport.clientWidth === 0) { setTimeout(centerWorkspace, 50); return; }
-    // Updated to the new 50,000 center
     workspaceViewport.scrollLeft = 50000 * currentZoom - (workspaceViewport.clientWidth / 2);
     workspaceViewport.scrollTop = 50000 * currentZoom - (workspaceViewport.clientHeight / 2);
 }
 
 function setupDefaultGraph() {
-    document.getElementById('nodes-container').innerHTML = ''; document.getElementById('ui-layer').innerHTML = ''; nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
-    // Updated cx and cy to 50,000
-    const cx = 50000, cy = 50000, cId = createNode('camera', cx - 250, cy - 100), sId = createNode('screen', cx + 50, cy - 100);
+    document.getElementById('nodes-container').innerHTML = '';
+    document.getElementById('ui-layer').innerHTML = '';
+    nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
+    const cx = 50000, cy = 50000;
+    const cId = createNode('camera', cx - 250, cy - 100);
+    const sId = createNode('screen', cx + 50, cy - 100);
     wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
-    rebuildGraphOrder(); drawWires(); activeScriptName = "Standard (Default)"; updateLabels(); centerWorkspace();
+    rebuildGraphOrder();
+    drawWires();
+    activeScriptName = "Standard (Default)";
+    updateLabels();
+    centerWorkspace();
 }
-
 
 function showToast(msg, isError = false) {
     toastAlert.classList.add('show');
@@ -29,15 +40,32 @@ document.getElementById('btn-toggle-palette').onclick = () => { palettePanel.cla
 document.getElementById('btn-toggle-scripts').onclick = () => { scriptsPanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
 sidebarOverlay.onclick = closeAllPanels;
 
-function setPendingPort(nodeId, port, isOut, element) { clearPendingPort(); pendingPort = { nodeId, port, isOut }; if (element) element.classList.add('pending'); }
-function clearPendingPort() { if (pendingPort) { document.querySelectorAll('.port.pending').forEach(el => el.classList.remove('pending')); pendingPort = null; } }
+function setPendingPort(nodeId, port, isOut, element) {
+    clearPendingPort();
+    pendingPort = { nodeId, port, isOut };
+    if (element) element.classList.add('pending');
+}
+
+function clearPendingPort() {
+    if (pendingPort) {
+        document.querySelectorAll('.port.pending').forEach(el => el.classList.remove('pending'));
+        pendingPort = null;
+    }
+}
 
 window.updateSwatch = function(nodeId) {
     const swatch = document.getElementById(`swatch-${nodeId}`); if (!swatch) return;
     const node = nodes[nodeId]; if (!node) return;
     const h = parseFloat(node.params.target || 0), s = parseFloat(node.params.s_target !== undefined ? node.params.s_target : 50) / 100, v = parseFloat(node.params.v_target !== undefined ? node.params.v_target : 50) / 100;
     let r, g, b, i = Math.floor(h / 60), f = h / 60 - i, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
-    switch (i % 6) { case 0: r = v, g = t, b = p; break; case 1: r = q, g = v, b = p; break; case 2: r = p, g = v, b = t; break; case 3: r = p, g = q, b = v; break; case 4: r = t, g = p, b = v; break; case 5: r = v, g = p, b = q; break; }
+    switch (i % 6) {
+        case 0: r = v, g = t, b = p; break;
+        case 1: r = q, g = v, b = p; break;
+        case 2: r = p, g = v, b = t; break;
+        case 3: r = p, g = q, b = v; break;
+        case 4: r = t, g = p, b = v; break;
+        case 5: r = v, g = p, b = q; break;
+    }
     swatch.style.background = `rgb(${Math.round(r*255)}, ${Math.round(g*255)}, ${Math.round(b*255)})`;
 };
 
@@ -74,12 +102,10 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
     const def = NODE_DEFS[type]; if (!def) return null;
     const id = restoredId || generateId(), el = document.createElement('div'); el.className = 'node'; el.id = `node-${id}`; el.style.left = `${x}px`; el.style.top = `${y}px`;
     let bodyHtml = '', params = restoredParams || {}, headerLabel = def.label;
-
     if (type === 'var_get' && params.varName) {
         headerLabel = params.varName;
         bodyHtml += `<div style="text-align:center; font-size:16px; color:#3b82f6; font-weight:bold; padding-bottom: 5px;"><span class="live-val-${getSafeVarName(params.varName)}">0</span></div>`;
     }
-
     if (def.inPorts && (def.inPorts.length > 0 || def.outPorts.length > 0)) {
         const maxPorts = Math.max(def.inPorts.length, def.outPorts.length);
         for(let i=0; i<maxPorts; i++) {
@@ -92,7 +118,6 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
             </div>`;
         }
     }
-
     if (def.params) def.params.forEach(p => {
         const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
         const isDrop = p.type === 'number' || p.type === 'range';
@@ -102,15 +127,13 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
             <div class="param-ui" id="pui-${id}-${p.id}"></div>
         </div>`;
     });
-    
     if (type === 'hsv_pass') bodyHtml += `<div class="param-group" style="margin-top: 8px;"><div style="font-size: 10px; color: #888; text-align: center; margin-bottom: 3px;">Target Color</div><div id="swatch-${id}" style="height: 24px; width: 100%; border-radius: 6px; border: 1px solid #444; background: #fff; box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);"></div></div>`;
-
+    
     el.innerHTML = `<div class="node-header">${headerLabel}<div class="node-actions">
-        <!-- New Preview Button added here -->
         <button class="node-btn preview-toggle" onclick="toggleNodePreview('${id}')" title="Toggle Node Preview" style="font-size:12px;">‣</button>
         <button class="node-btn" onclick="duplicateNode('${id}')" title="Duplicate Node">⧉</button>
         <button class="node-btn delete" onclick="deleteNode('${id}')" title="Delete Node">✕</button></div></div><div class="node-body">${bodyHtml}</div>`;
-
+        
     nodesContainer.appendChild(el); nodes[id] = { id, type, params, bindings: restoredBindings || {}, domElement: el, outputData: {} };
     if (def.params) def.params.forEach(p => renderParamUI(id, p.id));
     if (type === 'hsv_pass') updateSwatch(id);
@@ -120,7 +143,6 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
         if (e.target.tagName === 'BUTTON') return;
         draggedNode = id; const rect = el.getBoundingClientRect(); dragOffsetX = e.clientX - rect.left; dragOffsetY = e.clientY - rect.top; el.style.zIndex = 5; el.classList.add('drag-active');
     });
-
     el.querySelectorAll('.port').forEach(portEl => {
         portEl.addEventListener('pointerdown', (e) => {
             e.stopPropagation();
@@ -150,17 +172,22 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
 }
 
 window.updateParam = function(nodeId, paramId, val) {
-    if (nodes[nodeId]) { nodes[nodeId].params[paramId] = val; const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`); if (lbl) lbl.textContent = val; if (nodes[nodeId].type === 'hsv_pass') updateSwatch(nodeId); }
+    if (nodes[nodeId]) { 
+        nodes[nodeId].params[paramId] = val; 
+        const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`); 
+        if (lbl) lbl.textContent = val; 
+        if (nodes[nodeId].type === 'hsv_pass') updateSwatch(nodeId); 
+    }
 };
 
 window.deleteNode = function(id) {
     if (!nodes[id]) return;
-    if (nodes[id].previewCanvas) nodes[id].previewCanvas.remove(); // Clean up floating preview canvas
+    if (nodes[id].previewCanvas) nodes[id].previewCanvas.remove();
     nodes[id].domElement.remove();
     delete nodes[id];
     const uiBtn = document.getElementById(`uibtn-${id}`); if (uiBtn) uiBtn.remove();
     wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); rebuildGraphOrder(); drawWires();
-}
+};
 
 // Creates or retrieves a top-level overlay container above all node cards
 function getPreviewLayer() {
@@ -173,8 +200,8 @@ function getPreviewLayer() {
         layer.style.left = '0';
         layer.style.width = '100%';
         layer.style.height = '100%';
-        layer.style.pointerEvents = 'none'; // Allows click-through to workspace/nodes
-        layer.style.zIndex = '500'; // Sits strictly above all nodes (z-index 2–5)
+        layer.style.pointerEvents = 'none';
+        layer.style.zIndex = '500';
         document.getElementById('workspace-inner').appendChild(layer);
     }
     return layer;
@@ -187,7 +214,6 @@ window.updatePreviewPosition = function(node) {
     const x = parseFloat(nodeEl.style.left) || 0;
     const y = parseFloat(nodeEl.style.top) || 0;
     const width = nodeEl.offsetWidth || 240;
-
     node.previewCanvas.style.left = `${x + (width / 2)}px`;
     node.previewCanvas.style.top = `${y - 10}px`;
     node.previewCanvas.style.transform = 'translate(-50%, -100%)';
@@ -202,7 +228,6 @@ window.toggleNodePreview = function(id) {
     
     if (node.showPreview) {
         btn.style.background = '#3b82f6';
-        
         if (!node.previewCanvas) {
             node.previewCanvas = document.createElement('canvas');
             node.previewCanvas.className = 'node-preview-canvas';
@@ -214,8 +239,6 @@ window.toggleNodePreview = function(id) {
             node.previewCanvas.style.boxShadow = '0 5px 15px rgba(0,0,0,0.6)';
             node.previewCanvas.style.pointerEvents = 'none';
         }
-        
-        // Append to overlay layer instead of node.domElement
         getPreviewLayer().appendChild(node.previewCanvas);
         node.previewCanvas.style.display = 'block';
         updatePreviewPosition(node);
@@ -239,13 +262,14 @@ function applyZoom(factor, cx, cy) {
     currentZoom = newZoom; workspaceInner.style.transform = `scale(${currentZoom})`;
     workspaceViewport.scrollLeft = wsX * currentZoom - (cx - rect.left); workspaceViewport.scrollTop = wsY * currentZoom - (cy - rect.top); drawWires();
 }
+
 workspaceViewport.addEventListener('wheel', (e) => { e.preventDefault(); applyZoom(e.deltaY > 0 ? 0.9 : 1.1, e.clientX, e.clientY); }, { passive: false });
 
-// --- Global Pointer Tracking ---
 window.addEventListener('pointerdown', (e) => { activePointers.set(e.pointerId, e); });
+
 window.addEventListener('blur', () => {
     activePointers.clear(); lastPinchDist = null; isPanning = false; workspaceViewport.classList.remove('panning'); draggingWire = null; paletteDragItem = null;
-    if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = nodes[draggedNode].showPreview ? 4 : 4; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; }
+    if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null; }
     drawWires();
 });
 
@@ -261,7 +285,7 @@ function handlePointerRelease(e) {
     activePointers.delete(e.pointerId); if (activePointers.size < 2) lastPinchDist = null;
     if (paletteDragItem) {
         startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params, false); 
-        if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 4; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null;}
+        if (draggedNode && nodes[draggedNode]) { nodes[draggedNode].domElement.style.zIndex = 2; nodes[draggedNode].domElement.classList.remove('drag-active'); draggedNode = null;}
         if (isPanning) { isPanning = false; workspaceViewport.classList.remove('panning'); try { workspaceViewport.releasePointerCapture(e.pointerId); } catch(err){} }
         paletteDragItem = null;
     }
@@ -303,12 +327,10 @@ function handlePointerRelease(e) {
 window.addEventListener('pointermove', (e) => {
     if (e.pointerType === 'mouse' && e.buttons === 0 && activePointers.has(e.pointerId)) { handlePointerRelease(e); return; }
     if(activePointers.has(e.pointerId)) activePointers.set(e.pointerId, e);
-
     if (paletteDragItem) {
         const dx = Math.abs(e.clientX - paletteDragItem.startX), dy = Math.abs(e.clientY - paletteDragItem.startY);
         if (dy > 10 && dx < dy) { paletteDragItem = null; } else if (dx > 10) { startDragFromPaletteActual(e, paletteDragItem.type, paletteDragItem.params, true); paletteDragItem = null; }
     }
-
     if (activePointers.size === 2) {
         const pts = Array.from(activePointers.values()), dist = Math.sqrt(Math.pow(pts[0].clientX - pts[1].clientX, 2) + Math.pow(pts[0].clientY - pts[1].clientY, 2));
         if (lastPinchDist) applyZoom(dist / lastPinchDist, (pts[0].clientX + pts[1].clientX) / 2, (pts[0].clientY + pts[1].clientY) / 2);
@@ -322,9 +344,13 @@ window.addEventListener('pointermove', (e) => {
         el.style.left = `${Math.max(0, (e.clientX - dragOffsetX - wsRect.left) / currentZoom)}px`; 
         el.style.top = `${Math.max(0, (e.clientY - dragOffsetY - wsRect.top) / currentZoom)}px`;
         
-        // Sync preview popup position during drag
         updatePreviewPosition(nodes[draggedNode]);
         
+        if (nodes[draggedNode].type === 'var_get') {
+            const targetEl = document.elementFromPoint(e.clientX, e.clientY), droppable = targetEl ? targetEl.closest('.param-droppable') : null;
+            document.querySelectorAll('.param-droppable.drag-over').forEach(el => el.classList.remove('drag-over'));
+            if (droppable) droppable.classList.add('drag-over');
+        }
         drawWires();
     }
     if (draggingWire) { draggingWire.mouseX = e.clientX; draggingWire.mouseY = e.clientY; requestAnimationFrame(drawWires); }
@@ -357,7 +383,10 @@ function renderPalette(category) {
 function startDragFromPaletteActual(e, type, params = null, capture = true) {
     if (isMobile()) closeAllPanels(); const wsRect = workspaceInner.getBoundingClientRect(), x = (e.clientX - wsRect.left) / currentZoom, y = (e.clientY - wsRect.top) / currentZoom;
     const newNodeId = createNode(type, x - 120, y - 20, null, params);
-    if (newNodeId) { draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 120 * currentZoom; dragOffsetY = 20 * currentZoom; el.style.zIndex = 5; el.classList.add('drag-active'); if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } }
+    if (newNodeId) { 
+        draggedNode = newNodeId; const el = nodes[newNodeId].domElement; dragOffsetX = 120 * currentZoom; dragOffsetY = 20 * currentZoom; el.style.zIndex = 5; el.classList.add('drag-active'); 
+        if (capture) { activePointers.set(e.pointerId, e); try { workspaceViewport.setPointerCapture(e.pointerId); } catch(err){} } 
+    }
 }
 
 document.getElementById('cancel-var').onclick = () => document.getElementById('var-modal').classList.remove('active');
@@ -387,64 +416,53 @@ function initBuilder() {
     if (autosaved) {
         try { const parsed = JSON.parse(autosaved); if (parsed && parsed.graph && parsed.graph.nodes && parsed.graph.nodes.length > 0) loadGraphFromJSON(parsed.graph, parsed.name); else setupDefaultGraph(); } catch(e) { setupDefaultGraph(); }
     } else if (Object.keys(nodes).length === 0) setupDefaultGraph();
-
     setInterval(() => { if (Object.keys(nodes).length > 0) safeSetStorage('vrcam_autosave', JSON.stringify({ name: activeScriptName, graph: saveGraphToJSON() })); }, 3000);
     centerWorkspace();
 }
 
-function saveGraphToJSON() { return { userVarNames: window.userVarNames, wires: wires, nodes: Object.values(nodes).map(n => ({ id: n.id, type: n.type, params: n.params, bindings: n.bindings, x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top) })) }; }
+function saveGraphToJSON() { 
+    return { userVarNames: window.userVarNames, wires: wires, nodes: Object.values(nodes).map(n => ({ id: n.id, type: n.type, params: n.params, bindings: n.bindings, x: parseInt(n.domElement.style.left), y: parseInt(n.domElement.style.top) })) }; 
+}
+
 function loadGraphFromJSON(data, name) {
     document.getElementById('nodes-container').innerHTML = ''; 
     document.getElementById('ui-layer').innerHTML = ''; 
-    nodes = {}; 
-    wires = []; 
-    window.userVars = {}; 
-    window.userVarNames = data.userVarNames || []; 
+    nodes = {}; wires = []; window.userVars = {}; window.userVarNames = data.userVarNames || []; 
     window.userVarNames.forEach(n => window.userVars[n] = 0);
-
-    // 1. Calculate the center of the saved graph
+    
     let avgX = 0, avgY = 0;
     if (data.nodes.length > 0) {
         data.nodes.forEach(n => { avgX += n.x; avgY += n.y; });
         avgX /= data.nodes.length;
         avgY /= data.nodes.length;
     }
-
-    // 2. Define the new center anchor
-    const targetCenterX = 50000;
-    const targetCenterY = 50000;
-
-    // 3. Create nodes with an offset shift to re-center them
+    const targetCenterX = 50000, targetCenterY = 50000;
     data.nodes.forEach(n => {
-        // Shift node position so the graph center matches the workspace center
         const shiftedX = n.x - avgX + targetCenterX;
         const shiftedY = n.y - avgY + targetCenterY;
         createNode(n.type, shiftedX, shiftedY, n.id, n.params, n.bindings);
     });
-
     wires = data.wires.filter(w => nodes[w.fromNode] && nodes[w.toNode]); 
     activeScriptName = name; 
     rebuildGraphOrder(); 
     drawWires(); 
     updateLabels();
-
     const activeTab = document.querySelector('.palette-tab.active'); 
     if (activeTab) renderPalette(activeTab.textContent);
-    
-    // Pan viewport to the center of the loaded nodes
+        
     workspaceViewport.scrollLeft = targetCenterX * currentZoom - (workspaceViewport.clientWidth / 2);
     workspaceViewport.scrollTop = targetCenterY * currentZoom - (workspaceViewport.clientHeight / 2);
-    
+        
     if (isMobile()) closeAllPanels();
 }
 
-
 function loadStorage() { try { const raw = safeGetStorage('vrcam_node_scripts'); if (raw) savedScripts = JSON.parse(raw); } catch(e) {} renderScriptList(); }
 function saveStorage() { safeSetStorage('vrcam_node_scripts', JSON.stringify(savedScripts)); renderScriptList(); }
+
 function renderScriptList() {
     const list = document.getElementById('saved-scripts-list'); list.innerHTML = '';
     savedScripts.forEach((s, idx) => {
-        const item = document.createElement('div'); item.className = 'script-item'; item.innerHTML = `<span>${s.name}</span><button class="node-btn delete" onclick="deleteScript(${idx}, event)">✕</button>`;
+        const item = document.createElement('div'); item.className = 'script-item'; item.innerHTML = `<span>${s.name}</span><button class="node-btn delete" onclick="deleteScript(${idx}, event)"> </button>`;
         item.onclick = () => loadGraphFromJSON(s.graph, s.name); list.appendChild(item);
     });
 }
@@ -470,10 +488,9 @@ function updateLabels() { document.getElementById('active-script-label').textCon
 
 window.autoLayoutNodes = function() {
     if (Object.keys(nodes).length === 0) return;
-
     let levels = {};
     Object.keys(nodes).forEach(id => levels[id] = 0);
-    
+         
     let changed = true;
     let maxIters = 100;
     while (changed && maxIters > 0) {
@@ -486,41 +503,35 @@ window.autoLayoutNodes = function() {
         });
         maxIters--;
     }
-
     let columns = {};
     let maxLevel = 0;
-    Object.keys(coordinates).forEach(id => {
-        const node = nodes[id];
-        if (node) {
-            node.domElement.style.left = `${coordinates[id].x}px`;
-            node.domElement.style.top = `${coordinates[id].y}px`;
-            if (typeof updatePreviewPosition === 'function') updatePreviewPosition(node);
-        }
+    Object.keys(nodes).forEach(id => {
+        let lvl = levels[id];
+        if (lvl > maxLevel) maxLevel = lvl;
+        if (!columns[lvl]) columns[lvl] = [];
+        columns[lvl].push(id);
     });
 
-    // Anchored to the new infinite canvas center
-    const endX = 50500;     
-    const startY = 50000;   
-    const colWidth = 380; 
-    const nodePadding = 40; 
+    const endX = 50500;
+    const startY = 50000;        
+    const colWidth = 380;      
+    const nodePadding = 40;      
     let coordinates = {};
 
-    // FIXED: Uses bounding client rect to find exact absolute offset, ignoring DOM nesting limits
     function getPortOffsetY(nodeId, portName, isOut) {
         const node = nodes[nodeId];
         if (!node || !node.domElement) return 0;
-        
+                 
         let portEl = node.domElement.querySelector(`.port-${isOut ? 'out' : 'in'}[data-port="${portName}"]`);
         if (!portEl && portName === 'video') {
             portEl = node.domElement.querySelector(`.port-${isOut ? 'out' : 'in'}`);
         }
-
         if (portEl) {
             const nodeRect = node.domElement.getBoundingClientRect();
             const portRect = portEl.getBoundingClientRect();
             return ((portRect.top - nodeRect.top) + (portRect.height / 2)) / currentZoom;
         }
-        
+                 
         return node.domElement.offsetHeight / 2;
     }
 
@@ -528,7 +539,7 @@ window.autoLayoutNodes = function() {
         columns[0].sort();
         let totalHeight = columns[0].reduce((sum, id) => sum + nodes[id].domElement.offsetHeight + nodePadding, 0) - nodePadding;
         let currentY = startY - (totalHeight / 2);
-        
+                 
         columns[0].forEach((id) => {
             coordinates[id] = { x: endX, y: currentY, h: nodes[id].domElement.offsetHeight };
             currentY += nodes[id].domElement.offsetHeight + nodePadding;
@@ -537,33 +548,33 @@ window.autoLayoutNodes = function() {
 
     for (let lvl = 1; lvl <= maxLevel; lvl++) {
         if (!columns[lvl]) continue;
-        
+                 
         let idealPositions = [];
-        
+                 
         columns[lvl].forEach(id => {
             let targetYs = [];
             const nodeHeight = nodes[id].domElement.offsetHeight;
-            
+                         
             wires.forEach(w => {
                 if (w.fromNode === id && coordinates[w.toNode]) {
                     const targetNodeBaseY = coordinates[w.toNode].y;
                     const targetPortOffset = getPortOffsetY(w.toNode, w.toPort, false);
                     const sourcePortOffset = getPortOffsetY(id, w.fromPort, true);
-                    
+                                         
                     targetYs.push((targetNodeBaseY + targetPortOffset) - sourcePortOffset);
                 }
             });
-            
+                         
             let avgY = startY;
             if (targetYs.length > 0) {
                 avgY = targetYs.reduce((a, b) => a + b, 0) / targetYs.length;
             }
-            
+                         
             idealPositions.push({ id: id, y: avgY, h: nodeHeight });
         });
-        
+                 
         idealPositions.sort((a, b) => a.y - b.y);
-        
+                 
         let overlap;
         let iter = 50;
         do {
@@ -573,7 +584,7 @@ window.autoLayoutNodes = function() {
                 let nodeB = idealPositions[i+1];
                 let requiredSpace = nodeA.h + nodePadding;
                 let currentSpace = nodeB.y - nodeA.y;
-                
+                                 
                 if (currentSpace < requiredSpace) {
                     let push = (requiredSpace - currentSpace) / 2;
                     nodeA.y -= push;
@@ -583,7 +594,7 @@ window.autoLayoutNodes = function() {
             }
             iter--;
         } while (overlap && iter > 0);
-        
+                 
         idealPositions.forEach(pos => {
             coordinates[pos.id] = { x: endX - (lvl * colWidth), y: pos.y, h: pos.h };
         });
@@ -594,15 +605,14 @@ window.autoLayoutNodes = function() {
         if (node) {
             node.domElement.style.left = `${coordinates[id].x}px`;
             node.domElement.style.top = `${coordinates[id].y}px`;
+            if (typeof updatePreviewPosition === 'function') updatePreviewPosition(node);
         }
     });
 
     rebuildGraphOrder();
     drawWires();
-    
-    // Pan the camera to the new sorted layout
-    setTimeout(centerWorkspace, 50); 
-
+         
+    setTimeout(centerWorkspace, 50);      
     showToast("Tree aligned dynamically based on exact port positions!");
 };
 
@@ -614,14 +624,17 @@ document.getElementById('nav-camera').onclick = function() {
     document.getElementById('view-builder').classList.remove('active'); 
     triggerControlsFade();
 };
+
 document.getElementById('nav-builder').onclick = function() {
     this.classList.add('active'); 
     document.getElementById('nav-camera').classList.remove('active'); 
     document.getElementById('view-builder').classList.add('active'); 
     viewCam.classList.remove('active'); 
-    drawWires(); 
+    drawWires();
 };
 
 // --- Boot ---
-initBuilder(); updateVRMode(); window.addEventListener('resize', drawWires); renderLoop();
-toggleNodePreview
+initBuilder();
+updateVRMode();
+window.addEventListener('resize', drawWires);
+renderLoop();
