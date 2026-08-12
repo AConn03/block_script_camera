@@ -36,6 +36,7 @@ function showToast(msg, isError = false) {
     setTimeout(() => { toastAlert.classList.remove('show'); }, 4000);
 }
 
+document.getElementById('btn-recenter').onclick = () => { centerWorkspace();};
 document.getElementById('btn-toggle-palette').onclick = () => { palettePanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
 document.getElementById('btn-toggle-scripts').onclick = () => { scriptsPanel.classList.add('open'); sidebarOverlay.classList.add('active'); };
 sidebarOverlay.onclick = closeAllPanels;
@@ -663,12 +664,12 @@ window.autoLayoutNodes = function() {
     showToast("Tree aligned dynamically based on exact port positions!");
 };
 
-// --- Tab Navigation ---
 document.getElementById('nav-camera').onclick = function() {
     this.classList.add('active'); 
     document.getElementById('nav-builder').classList.remove('active'); 
     viewCam.classList.add('active'); 
     document.getElementById('view-builder').classList.remove('active'); 
+    document.getElementById('btn-recenter').style.display = 'none'; // Hide in camera view
     triggerControlsFade();
 };
 
@@ -677,8 +678,11 @@ document.getElementById('nav-builder').onclick = function() {
     document.getElementById('nav-camera').classList.remove('active'); 
     document.getElementById('view-builder').classList.add('active'); 
     viewCam.classList.remove('active'); 
+    document.getElementById('btn-recenter').style.display = 'inline-block'; // Show in builder view
     drawWires();
 };
+
+
 
 // --- Boot ---
 initBuilder();
