@@ -414,6 +414,7 @@ function applyNodeEffect(node, inputs) {
         else if (isBound) val = window.userVars[node.bindings[id]] ?? defVal;
         else val = params[id] ?? defVal;
                 
+        // 1. Update text boxes (number/text types)
         const inputEl = document.getElementById(`input-${node.id}-${id}`);
         if (inputEl) {
             if (isConnected || isBound) {
@@ -424,12 +425,22 @@ function applyNodeEffect(node, inputs) {
                 }
             } else {
                 inputEl.disabled = false;
-                // Restore static input value when disconnected
                 if (document.activeElement !== inputEl) {
                     inputEl.value = params[id] ?? defVal;
                 }
             }
         }
+
+        // 2. Update blue label text (for slider/range types)
+        const lbl = document.getElementById(`lbl-${node.id}-${id}`);
+        if (lbl && typeof val !== 'object') {
+            let fmt = typeof val === 'number' ? (Number.isInteger(val) ? val : Math.round(val*100)/100) : val;
+            if (lbl.dataset.last !== String(fmt)) { 
+                lbl.textContent = fmt; 
+                lbl.dataset.last = fmt; 
+            }
+        }
+
         return val;
     };
     

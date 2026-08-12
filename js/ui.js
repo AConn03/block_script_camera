@@ -122,9 +122,15 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
     if (def.params) def.params.forEach(p => {
         const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
         const isDrop = p.type === 'number' || p.type === 'range';
+        
+        // Conditionally create the blue label span ONLY for sliders (range)
+        const labelValueHtml = p.type === 'range' 
+            ? `<span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span>` 
+            : '';
+
         bodyHtml += `<div class="param-group ${isDrop ? 'param-droppable' : ''}" data-node="${id}" data-param="${p.id}">
             <div class="port port-in param-port" data-node="${id}" data-port="${p.id}"></div>
-            <div class="param-header"><span>${p.label}</span></div>
+            <div class="param-header"><span>${p.label}</span>${labelValueHtml}</div>
             <div class="param-ui" id="pui-${id}-${p.id}"></div>
         </div>`;
     });
