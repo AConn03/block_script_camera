@@ -282,16 +282,21 @@ function evaluateFrame() {
     if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
     
     Object.values(nodes).forEach(node => {
-        if (!node.outputData) node.outputData = {};
-        const def = NODE_DEFS[node.type];
-        if (!def) return;
-        
-        if ((def.category === 'Image Processing' && node.type !== 'get_position') || node.type === 'camera' || node.type === 'capture_frame') {
-            if (!node.canvas || node.canvas.width !== videoWidth) {
-                node.canvas = createInternalCanvas(videoWidth, videoHeight);
-                node.ctx = node.canvas.getContext('2d', { willReadFrequently: true });
-                if (node.type === 'delay' || node.type === 'accumulate') node.buffer = []; 
-                if (node.type === 'edge') node.grayBuffer = new Uint8Array(videoWidth * videoHeight);
+        if (node.showPreview) {
+            const previewCanvas = node.domElement.querySelector('.node-preview-canvas');
+            if (!previewCanvas) return;
+            
+            // Find canvas source from node canvas or output ports
+            const srcCanvas = node.canvas || 
+                (node.outputData && (node.outputData['out'] || node.outputData['video'] || Object.values(node.outputData).find(v => v instanceof HTMLCanvasElement)));
+                
+            if (srcCanvas && srcCanvas instanceof HTMLCanvasElement && srcCanvas.width > 0 && srcCanvas.height > 0) {
+                if (previewCanvas.width !== srcCanvas.width) previewCanvas.width = srcCanvas.width;
+                if (previewCanvas.height !== srcCanvas.height) previewCanvas.height = srcCanvas.height;
+                
+                const pCtx = previewCanvas.getContext('2d');
+                pCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+                pCtx.drawImage(srcCanvas, 0, 0);
             }
         }
     });
