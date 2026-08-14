@@ -515,6 +515,239 @@ function renderScriptList() {
     });
 }
 
+function generateCleanExportJSON() {
+    const nodeKeys = Object.keys(nodes);
+    // Map raw UUIDs to clean sequential numeric IDs (1 to total nodes)
+    const idMap = {};
+    nodeKeys.forEach((rawId, index) => {
+        idMap[rawId] = index + 1;
+    });
+
+    const exportNodes = nodeKeys.map(rawId => {
+        const n = nodes[rawId];
+        const numId = idMap[rawId];
+
+        // Map incoming connections into this node
+        const inputs = wires
+            .filter(w => w.toNode === rawId)
+            .map(w => ({
+                slot: w.toPort,
+                fromNode: idMap[w.fromNode] || w.fromNode,
+                fromSlot: w.fromPort
+            }));
+
+        // Map outgoing connections from this node
+        const outputs = wires
+            .filter(w => w.fromNode === rawId)
+            .map(w => ({
+                slot: w.fromPort,
+                toNode: idMap[w.toNode] || w.toNode,
+                toSlot: w.toPort
+            }));
+
+        const cleanNode = {
+            id: numId,
+            type: n.type
+        };
+
+        if (n.params && Object.keys(n.params).length > 0) cleanNode.params = n.params;
+        if (inputs.length > 0) cleanNode.inputs = inputs;
+        if (outputs.length > 0) cleanNode.outputs = outputs;
+
+        return cleanNode;
+    });
+
+    return JSON.stringify({
+        name: activeScriptName || "Script",
+        totalNodes: exportNodes.length,
+        nodes: exportNodes
+    }, null, 2);
+}
+
+// Download helper
+function downloadExportFile(content, extension, mimeType) {
+    const filename = `${(activeScriptName || 'script').toLowerCase().replace(/\s+/g, '_')}.${extension}`;
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// Modal controls and export button hooks
+const exportModal = document.getElementById('export-modal');
+const exportTextarea = document.getElementById('export-json-text');
+
+document.getElementById('export-script-btn').onclick = () => {
+    exportTextarea.value = generateCleanExportJSON();
+    exportModal.classList.add('active');
+};
+
+document.getElementById('close-export-btn').onclick = () => {
+    exportModal.classList.remove('active');
+};
+
+function importGraphFromCleanJSON(rawJsonString) {
+    try {
+        const data = JSON.parse(rawJsonString);
+        if (!data || !data.nodes || !Array.isArray(data.nodes)) {
+            throw new Error("Invalid format: Missing 'nodes' array.");
+        }
+
+        // Reset current workspace
+        document.getElementById('nodes-container').innerHTML = '';
+        document.getElementById('ui-layer').innerHTML = '';
+        nodes = {};
+        wires = [];
+        window.userVars = {};
+        window.userVarNames = data.userVarNames || [];
+        window.userVarNames.forEach(n => window.userVars[n] = 0);
+
+        // Map numeric IDs (e.g. 1, 2, 3) to internal engine IDs
+        const idMap = {};
+        data.nodes.forEach(n => {
+            idMap[n.id] = generateId();
+        });
+
+        // 1. Instantiate nodes
+        const cx = 50000, cy = 50000;
+        data.nodes.forEach((n, idx) => {
+            const internalId = idMap[n.id];
+            const nodeParams = n.params || {};
+            // Place initially in a row around center
+            const x = cx + (idx * 280) - ((data.nodes.length * 280) / 2);
+            const y = cy;
+            createNode(n.type, x, y, internalId, nodeParams);
+        });
+
+        // 2. Rebuild wires from inputs / outputs
+        const wireSet = new Set();
+        data.nodes.forEach(n => {
+            const toNodeId = idMap[n.id];
+
+            // Reconstruct from 'inputs' slot list
+            if (n.inputs && Array.isArray(n.inputs)) {
+                n.inputs.forEach(inp => {
+                    const fromNodeId = idMap[inp.fromNode];
+                    if (fromNodeId && toNodeId) {
+                        const wireKey = `${fromNodeId}:${inp.fromSlot}->${toNodeId}:${inp.slot}`;
+                        if (!wireSet.has(wireKey)) {
+                            wireSet.add(wireKey);
+                            wires.push({
+                                id: generateId(),
+                                fromNode: fromNodeId,
+                                fromPort: inp.fromSlot,
+                                toNode: toNodeId,
+                                toPort: inp.slot
+                            });
+                        }
+                    }
+                });
+            }
+
+            // Fallback: Reconstruct from 'outputs' list if present
+            if (n.outputs && Array.isArray(n.outputs)) {
+                n.outputs.forEach(out => {
+                    const fromNodeId = toNodeId;
+                    const destNodeId = idMap[out.toNode];
+                    if (fromNodeId && destNodeId) {
+                        const wireKey = `${fromNodeId}:${out.slot}->${destNodeId}:${out.toSlot}`;
+                        if (!wireSet.has(wireKey)) {
+                            wireSet.add(wireKey);
+                            wires.push({
+                                id: generateId(),
+                                fromNode: fromNodeId,
+                                fromPort: out.slot,
+                                toNode: destNodeId,
+                                toPort: out.toSlot
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        activeScriptName = data.name || "Imported Script";
+        rebuildGraphOrder();
+        drawWires();
+        updateLabels();
+
+        // 3. Automatically layout tree and center camera
+        if (typeof window.autoLayoutNodes === 'function') {
+            window.autoLayoutNodes();
+        } else {
+            centerWorkspace();
+        }
+
+        showToast(`Loaded "${activeScriptName}" successfully!`);
+        return true;
+    } catch (err) {
+        showToast("Import failed: " + err.message, true);
+        return false;
+    }
+}
+
+// Modal bindings
+const importModal = document.getElementById('import-modal');
+const importTextarea = document.getElementById('import-json-text');
+const importFileInput = document.getElementById('import-file-input');
+
+document.getElementById('import-script-btn').onclick = () => {
+    importTextarea.value = '';
+    importModal.classList.add('active');
+};
+
+document.getElementById('close-import-btn').onclick = () => {
+    importModal.classList.remove('active');
+};
+
+document.getElementById('confirm-import-btn').onclick = () => {
+    const text = importTextarea.value.trim();
+    if (!text) {
+        showToast("Please paste JSON script content first.", true);
+        return;
+    }
+    if (importGraphFromCleanJSON(text)) {
+        importModal.classList.remove('active');
+        if (isMobile()) closeAllPanels();
+    }
+};
+
+document.getElementById('upload-import-file-btn').onclick = () => {
+    importFileInput.click();
+};
+
+importFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        importTextarea.value = event.target.result;
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+});
+
+document.getElementById('copy-export-btn').onclick = () => {
+    navigator.clipboard.writeText(exportTextarea.value).then(() => {
+        showToast("Copied script to clipboard!");
+    }).catch(() => {
+        exportTextarea.select();
+        document.execCommand('copy');
+        showToast("Copied script to clipboard!");
+    });
+};
+
+document.getElementById('dl-json-btn').onclick = () => {
+    downloadExportFile(exportTextarea.value, 'json', 'application/json');
+};
+
+document.getElementById('dl-txt-btn').onclick = () => {
+    downloadExportFile(exportTextarea.value, 'txt', 'text/plain');
+};
+
 window.deleteScript = function(idx, e) { e.stopPropagation(); savedScripts.splice(idx, 1); saveStorage(); };
 
 document.getElementById('clear-script-btn').onclick = () => confirmActionModal.classList.add('active');
