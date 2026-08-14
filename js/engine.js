@@ -819,7 +819,9 @@ function renderFinalOutput(sourceCanvas) {
     previewCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
 }
 
-function renderLoop() { evaluateFrame(); renderLoopId = requestAnimationFrame(renderLoop); }
+function renderLoop() { 
+    evaluateFrame(); 
+    renderLoopId = requestAnimationFrame(renderLoop); }
 
 function getPortPos(nodeId, portName, isOut) {
     const node = nodes[nodeId];

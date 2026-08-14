@@ -14,6 +14,7 @@ function centerWorkspace() {
 }
 
 function setupDefaultGraph() {
+    closeAllPreviewsAndUIOverlays();
     document.getElementById('nodes-container').innerHTML = '';
     document.getElementById('ui-layer').innerHTML = '';
     nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
@@ -259,6 +260,27 @@ window.toggleNodePreview = function(id) {
     }
 };
 
+function closeAllPreviewsAndUIOverlays() {
+    // 1. Wipe all floating node preview canvases
+    const previewLayer = document.getElementById('preview-layer');
+    if (previewLayer) {
+        previewLayer.innerHTML = '';
+    }
+
+    // 2. Clear bottom-right builder preview canvas
+    const previewCanvas = document.getElementById('preview-canvas');
+    if (previewCanvas) {
+        const ctx = previewCanvas.getContext('2d');
+        if (ctx) ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    }
+
+    // 3. Clear dynamic UI button overlay layer
+    const uiLayer = document.getElementById('ui-layer');
+    if (uiLayer) {
+        uiLayer.innerHTML = '';
+    }
+}
+
 window.duplicateNode = function(id) {
     const node = nodes[id]; if (!node) return;
     const newX = parseInt(node.domElement.style.left) + 20, newY = parseInt(node.domElement.style.top) + 20;
@@ -473,6 +495,7 @@ function saveGraphToJSON() {
 }
 
 function loadGraphFromJSON(data, name) {
+    closeAllPreviewsAndUIOverlays();
     document.getElementById('nodes-container').innerHTML = ''; 
     document.getElementById('ui-layer').innerHTML = ''; 
     nodes = {}; wires = []; window.userVars = {}; window.userVarNames = data.userVarNames || []; 
@@ -617,9 +640,11 @@ function importGraphFromCleanJSON(rawJsonString) {
             throw new Error("Invalid format: Missing 'nodes' array.");
         }
 
-        // Reset workspace
+        // --- FIX: Kill open previews and overlays first ---
+        closeAllPreviewsAndUIOverlays();
+
+        // Reset workspace DOM and state
         document.getElementById('nodes-container').innerHTML = '';
-        document.getElementById('ui-layer').innerHTML = '';
         nodes = {};
         wires = [];
         window.userVars = {};
@@ -631,7 +656,7 @@ function importGraphFromCleanJSON(rawJsonString) {
             idMap[n.id] = generateId();
         });
 
-        // 1. Create nodes and reconstruct parameters from positional array 'p'
+        // 1. Create nodes and reconstruct parameters
         const cx = 50000, cy = 50000;
         data.nodes.forEach((n, idx) => {
             const internalId = idMap[n.id];
@@ -645,7 +670,6 @@ function importGraphFromCleanJSON(rawJsonString) {
             const def = NODE_DEFS[typeStr] || {};
             const nodeParams = {};
 
-            // Unpack positional 'p' array into named parameter keys
             if (n.p && Array.isArray(n.p) && def.params) {
                 n.p.forEach((val, pIdx) => {
                     if (val !== null && val !== undefined && def.params[pIdx]) {
@@ -653,7 +677,6 @@ function importGraphFromCleanJSON(rawJsonString) {
                     }
                 });
             } else if (n.params && typeof n.params === 'object') {
-                // Fallback for object params
                 Object.assign(nodeParams, n.params);
             }
 
