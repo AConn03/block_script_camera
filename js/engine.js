@@ -216,74 +216,230 @@ class WebGLPipeline {
                 }
             }
         `);
+
+        this.createProgram('blend', precision + `
+            varying vec2 v_uv;
+            uniform sampler2D u_bg;
+            uniform sampler2D u_fg;
+            uniform float u_mix;
+            uniform float u_mode; // 0=mix, 1=add, 2=multiply, 3=screen, 4=difference, 5=overlay
+
+            void main() {
+                vec4 bg = texture2D(u_bg, v_uv);
+                vec4 fg = texture2D(u_fg, v_uv);
+                vec3 res = bg.rgb;
+
+                if (u_mode < 0.5) {
+                    // Mix (Normal Alpha Blend)
+                    res = mix(bg.rgb, fg.rgb, u_mix);
+                } else if (u_mode < 1.5) {
+                    // Additive
+                    res = bg.rgb + (fg.rgb * u_mix);
+                } else if (u_mode < 2.5) {
+                    // Multiply
+                    res = mix(bg.rgb, bg.rgb * fg.rgb, u_mix);
+                } else if (u_mode < 3.5) {
+                    // Screen
+                    res = mix(bg.rgb, 1.0 - (1.0 - bg.rgb) * (1.0 - fg.rgb), u_mix);
+                } else if (u_mode < 4.5) {
+                    // Difference
+                    res = mix(bg.rgb, abs(bg.rgb - fg.rgb), u_mix);
+                } else if (u_mode < 5.5) {
+                    // Overlay
+                    vec3 overlay = mix(
+                        2.0 * bg.rgb * fg.rgb,
+                        1.0 - 2.0 * (1.0 - bg.rgb) * (1.0 - fg.rgb),
+                        step(0.5, bg.rgb)
+                    );
+                    res = mix(bg.rgb, overlay, u_mix);
+                }
+
+                gl_FragColor = vec4(res, max(bg.a, fg.a));
+            }
+        `);
+
+        this.createProgram('color_adjust', precision + `
+            varying vec2 v_uv;
+            uniform sampler2D u_image;
+            uniform mat3 u_mat;
+            void main() {
+                vec4 c = texture2D(u_image, v_uv);
+                if (c.a == 0.0) { gl_FragColor = c; return; }
+                vec3 rgb = clamp(u_mat * c.rgb, 0.0, 1.0);
+                gl_FragColor = vec4(rgb, c.a);
+            }
+        `);
+
+        this.createProgram('transform', precision + `
+            varying vec2 v_uv;
+            uniform sampler2D u_image;
+            uniform vec2 u_offset; // Normalized (-1.0 to 1.0)
+            uniform vec2 u_scale;  // Zoom factors
+            void main() {
+                vec2 uv = (v_uv - 0.5 - u_offset) / u_scale + 0.5;
+                if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
+                    gl_FragColor = vec4(0.0);
+                } else {
+                    gl_FragColor = texture2D(u_image, uv);
+                }
+            }
+        `);
+
+        this.createProgram('pixelate', precision + `
+            varying vec2 v_uv;
+            uniform sampler2D u_image;
+            uniform vec2 u_res;
+            uniform float u_size;
+            void main() {
+                vec2 d = u_size / u_res;
+                vec2 coord = d * floor(v_uv / d);
+                gl_FragColor = texture2D(u_image, coord);
+            }
+        `);
     }
 
     process(type, inputCanvas, getP, params) {
-        if (!this.gl || !this.programs[type]) return false;
-        const gl = this.gl;
-        const w = inputCanvas.width;
-        const h = inputCanvas.height;
+            if (!this.gl) return false;
 
-        if (this.canvas.width !== w || this.canvas.height !== h) {
-            this.canvas.width = w; this.canvas.height = h;
-            gl.viewport(0, 0, w, h);
+            // Map node types to their registered shader programs
+            let progName = type;
+            if (type === 'hue_shift' || type === 'saturation') progName = 'color_adjust';
+
+            if (!this.programs[progName]) return false;
+            const gl = this.gl;
+            const w = inputCanvas.width;
+            const h = inputCanvas.height;
+
+            if (this.canvas.width !== w || this.canvas.height !== h) {
+                this.canvas.width = w; 
+                this.canvas.height = h;
+                gl.viewport(0, 0, w, h);
+            }
+
+            const prog = this.programs[progName];
+            gl.useProgram(prog);
+
+            // Upload input canvas to GPU texture
+            gl.bindTexture(gl.TEXTURE_2D, this.texture);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, inputCanvas);
+
+            gl.uniform1i(prog.u_image, 0);
+            gl.uniform2f(prog.u_res, w, h);
+
+            if (type === 'grayscale' || type === 'invert') {
+                gl.uniform1f(gl.getUniformLocation(prog, "u_amt"), getP('amount', 100) / 100.0);
+            } else if (type === 'brightness' || type === 'contrast') {
+                gl.uniform1f(gl.getUniformLocation(prog, "u_amt"), getP('amount', 0) / 100.0);
+            } else if (type === 'tint') {
+                gl.uniform3f(gl.getUniformLocation(prog, "u_color"), getP('r', 255) / 255, getP('g', 255) / 255, getP('b', 255) / 255);
+            } else if (type === 'chroma') {
+                gl.uniform3f(gl.getUniformLocation(prog, "u_target"), getP('r', 0), getP('g', 255), getP('b', 0));
+                gl.uniform1f(gl.getUniformLocation(prog, "u_tolSq"), Math.pow(getP('tol', 80), 2));
+            } else if (type === 'edge') {
+                gl.uniform1f(gl.getUniformLocation(prog, "u_intensity"), getP('intensity', 50));
+                gl.uniform1f(gl.getUniformLocation(prog, "u_binary"), params.mode === 'binary' ? 1.0 : 0.0);
+            } else if (type === 'mask') {
+                gl.uniform1f(gl.getUniformLocation(prog, "u_invert"), params.invert === 'true' ? 1.0 : 0.0);
+            } else if (type === 'bandpass') {
+                const ch = params.channel || 'luma';
+                const chNum = ch === 'red' ? 1.0 : (ch === 'green' ? 2.0 : (ch === 'blue' ? 3.0 : 0.0));
+                gl.uniform1f(gl.getUniformLocation(prog, "u_channel"), chNum);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_med"), getP('median', 127));
+                gl.uniform1f(gl.getUniformLocation(prog, "u_rh"), getP('range', 50) / 2.0);
+            } else if (type === 'hsv_pass') {
+                const mode = params.mode || 'transparent';
+                const modeNum = mode === 'mask' ? 1.0 : (mode === 'grayscale' ? 2.0 : (mode === 'black' ? 3.0 : 0.0));
+                gl.uniform1f(gl.getUniformLocation(prog, "u_targetH"), getP('target', 0) / 360.0);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_tolH"), getP('tol', 30) / 360.0);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_targetS"), getP('s_target', 100) / 100.0);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_tolS"), getP('s_tol', 75) / 100.0);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_targetV"), getP('v_target', 100) / 100.0);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_tolV"), getP('v_tol', 100) / 100.0);
+                gl.uniform1f(gl.getUniformLocation(prog, "u_mode"), modeNum);
+            } else if (type === 'pixelate') {
+                gl.uniform1f(gl.getUniformLocation(prog, "u_size"), getP('size', 10));
+            } else if (type === 'hue_shift' || type === 'saturation') {
+                let hShift = type === 'hue_shift' ? getP('deg', 0) : 0;
+                let sScale = type === 'saturation' ? getP('amount', 100) / 100 : 1;
+
+                const angle = hShift * Math.PI / 180;
+                const c = Math.cos(angle), s = Math.sin(angle);
+                const lumR = 0.213, lumG = 0.715, lumB = 0.072;
+
+                const m = new Float32Array([
+                    (lumR + (1.0 - lumR) * c - lumR * s) * sScale + lumR * (1.0 - sScale),
+                    (lumR - lumR * c + 0.143 * s) * sScale + lumR * (1.0 - sScale),
+                    (lumR - lumR * c - (1.0 - lumR) * s) * sScale + lumR * (1.0 - sScale),
+
+                    (lumG - lumG * c - lumG * s) * sScale + lumG * (1.0 - sScale),
+                    (lumG + (1.0 - lumG) * c + 0.140 * s) * sScale + lumG * (1.0 - sScale),
+                    (lumG - lumG * c + 0.140 * s) * sScale + lumG * (1.0 - sScale),
+
+                    (lumB - lumB * c + (1.0 - lumB) * s) * sScale + lumB * (1.0 - sScale),
+                    (lumB - lumB * c - 0.283 * s) * sScale + lumB * (1.0 - sScale),
+                    (lumB + (1.0 - lumB) * c + (1.0 - lumB) * s) * sScale + lumB * (1.0 - sScale)
+                ]);
+
+                gl.uniformMatrix3fv(gl.getUniformLocation(prog, "u_mat"), false, m);
+            }
+
+            // Draw quad
+            const posLoc = gl.getAttribLocation(prog, "a_position");
+            gl.enableVertexAttribArray(posLoc);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
+            gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            return true;
         }
 
-        const prog = this.programs[type];
-        gl.useProgram(prog);
+        processBlend(bgCanvas, fgCanvas, mode, mixAmt) {
+            if (!this.gl || !this.programs['blend']) return false;
+            const gl = this.gl;
+            const w = bgCanvas.width, h = bgCanvas.height;
+            if (this.canvas.width !== w || this.canvas.height !== h) {
+                this.canvas.width = w; 
+                this.canvas.height = h;
+                gl.viewport(0, 0, w, h);
+            }
+            const prog = this.programs['blend'];
+            gl.useProgram(prog);
 
-        // Upload input canvas to GPU texture
-        gl.bindTexture(gl.TEXTURE_2D, this.texture);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, inputCanvas);
+            // Bind Texture 0 (Background)
+            gl.activeTexture(gl.TEXTURE0);
+            if (!this.texBg) this.texBg = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, this.texBg);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, bgCanvas);
+            gl.uniform1i(gl.getUniformLocation(prog, "u_bg"), 0);
 
-        gl.uniform1i(prog.u_image, 0);
-        gl.uniform2f(prog.u_res, w, h);
+            // Bind Texture 1 (Foreground)
+            gl.activeTexture(gl.TEXTURE1);
+            if (!this.texFg) this.texFg = gl.createTexture();
+            gl.bindTexture(gl.TEXTURE_2D, this.texFg);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, fgCanvas);
+            gl.uniform1i(gl.getUniformLocation(prog, "u_fg"), 1);
 
-        if (type === 'grayscale' || type === 'invert') {
-            gl.uniform1f(gl.getUniformLocation(prog, "u_amt"), getP('amount', 100) / 100.0);
-        } else if (type === 'brightness' || type === 'contrast') {
-            gl.uniform1f(gl.getUniformLocation(prog, "u_amt"), getP('amount', 0) / 100.0);
-        } else if (type === 'tint') {
-            gl.uniform3f(gl.getUniformLocation(prog, "u_color"), getP('r', 255)/255, getP('g', 255)/255, getP('b', 255)/255);
-        } else if (type === 'chroma') {
-            gl.uniform3f(gl.getUniformLocation(prog, "u_target"), getP('r', 0), getP('g', 255), getP('b', 0));
-            gl.uniform1f(gl.getUniformLocation(prog, "u_tolSq"), Math.pow(getP('tol', 80), 2));
-        } else if (type === 'edge') {
-            gl.uniform1f(gl.getUniformLocation(prog, "u_intensity"), getP('intensity', 50));
-            gl.uniform1f(gl.getUniformLocation(prog, "u_binary"), params.mode === 'binary' ? 1.0 : 0.0);
-        } else if (type === 'mask') {
-            gl.uniform1f(gl.getUniformLocation(prog, "u_invert"), params.invert === 'true' ? 1.0 : 0.0);
-        } else if (type === 'bandpass') {
-            const ch = params.channel || 'luma';
-            const chNum = ch === 'red' ? 1.0 : (ch === 'green' ? 2.0 : (ch === 'blue' ? 3.0 : 0.0));
-            gl.uniform1f(gl.getUniformLocation(prog, "u_channel"), chNum);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_med"), getP('median', 127));
-            gl.uniform1f(gl.getUniformLocation(prog, "u_rh"), getP('range', 50) / 2.0);
-        } else if (type === 'hsv_pass') {
-            const mode = params.mode || 'transparent';
-            const modeNum = mode === 'mask' ? 1.0 : (mode === 'grayscale' ? 2.0 : (mode === 'black' ? 3.0 : 0.0));
-            gl.uniform1f(gl.getUniformLocation(prog, "u_targetH"), getP('target', 0) / 360.0);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_tolH"), getP('tol', 30) / 360.0);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_targetS"), getP('s_target', 100) / 100.0);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_tolS"), getP('s_tol', 75) / 100.0);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_targetV"), getP('v_target', 100) / 100.0);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_tolV"), getP('v_tol', 100) / 100.0);
-            gl.uniform1f(gl.getUniformLocation(prog, "u_mode"), modeNum);
+            const modeMap = { 'mix': 0, 'add': 1, 'multiply': 2, 'screen': 3, 'difference': 4, 'overlay': 5 };
+            gl.uniform1f(gl.getUniformLocation(prog, "u_mode"), modeMap[mode] || 0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_mix"), mixAmt);
+
+            const posLoc = gl.getAttribLocation(prog, "a_position");
+            gl.enableVertexAttribArray(posLoc);
+            gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
+            gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+            gl.drawArrays(gl.TRIANGLES, 0, 6);
+            return true;
         }
-
-        // Draw quad
-        const posLoc = gl.getAttribLocation(prog, "a_position");
-        gl.enableVertexAttribArray(posLoc);
-        gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
-        gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
-        
-        gl.drawArrays(gl.TRIANGLES, 0, 6);
-        return true;
     }
-}
 
 const glPipeline = new WebGLPipeline();
 
@@ -840,97 +996,52 @@ function applyNodeEffect(node, inputs) {
     }
     
     if (type === 'blend') {
-        const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null, fgC = inputs['fg'] instanceof HTMLCanvasElement ? inputs['fg'] : null;
+        const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null;
+        const fgC = inputs['fg'] instanceof HTMLCanvasElement ? inputs['fg'] : null;
+        
         if (!bgC && !fgC) return;
-        if (!bgC || !fgC) { ctx.drawImage(bgC || fgC, 0, 0); setUnifiedOutCanvas(canvas); return; }
-        const mode = params.mode || 'mix', mixAmt = getP('mix', 50) / 100;
-        ctx.drawImage(bgC, 0, 0); ctx.globalAlpha = mixAmt;
-        if (mode === 'add') ctx.globalCompositeOperation = 'lighter'; else if (mode === 'multiply') ctx.globalCompositeOperation = 'multiply'; else if (mode === 'screen') ctx.globalCompositeOperation = 'screen'; else if (mode === 'difference') ctx.globalCompositeOperation = 'difference';
-        ctx.drawImage(fgC, 0, 0); ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; setUnifiedOutCanvas(canvas); return;
+        if (!bgC || !fgC) { 
+            ctx.drawImage(bgC || fgC, 0, 0); 
+            setUnifiedOutCanvas(canvas); 
+            return; 
+        }
+
+        const mode = params.mode || 'mix';
+        const mixAmt = getP('mix', 50) / 100;
+
+        // WebGL Fast Path
+        if (glPipeline.processBlend(bgC, fgC, mode, mixAmt)) {
+            ctx.drawImage(glPipeline.canvas, 0, 0);
+        } else {
+            // Fallback to 2D canvas if WebGL fails
+            ctx.drawImage(bgC, 0, 0);
+            ctx.globalAlpha = mixAmt;
+            if (mode === 'add') ctx.globalCompositeOperation = 'lighter';
+            else if (mode === 'multiply') ctx.globalCompositeOperation = 'multiply';
+            else if (mode === 'screen') ctx.globalCompositeOperation = 'screen';
+            else if (mode === 'difference') ctx.globalCompositeOperation = 'difference';
+            ctx.drawImage(fgC, 0, 0);
+            ctx.globalAlpha = 1.0;
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        setUnifiedOutCanvas(canvas);
+        return;
     }
-    
+        
     if (type === 'translate') { ctx.save(); ctx.translate(getP('cx', 0) + getP('fx', 0), getP('cy', 0) + getP('fy', 0)); ctx.drawImage(unifiedInCanvas, 0, 0); ctx.restore(); setUnifiedOutCanvas(canvas); return; }
     if (type === 'scale') { const scalePct = getP('scale', 100) / 100; ctx.save(); ctx.translate(w / 2, h / 2); ctx.scale(scalePct, scalePct); ctx.translate(-w / 2, -h / 2); ctx.drawImage(unifiedInCanvas, 0, 0); ctx.restore(); setUnifiedOutCanvas(canvas); return; }
     if (type === 'flip') { const flipX = params.flipX === 'true', flipY = params.flipY === 'true'; ctx.save(); ctx.translate(flipX ? w : 0, flipY ? h : 0); ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1); ctx.drawImage(unifiedInCanvas, 0, 0); ctx.restore(); setUnifiedOutCanvas(canvas); return; }
     
-    if (type === 'pixelate') {
-        const size = Math.max(1, parseInt(getP('size', 10)));
-        if (size <= 1) { ctx.drawImage(unifiedInCanvas, 0, 0); setUnifiedOutCanvas(canvas); return; }
-        ctx.imageSmoothingEnabled = false; ctx.drawImage(unifiedInCanvas, 0, 0, w/size, h/size); ctx.drawImage(canvas, 0, 0, w/size, h/size, 0, 0, w, h);
-        setUnifiedOutCanvas(canvas); return;
-    }
-
-    const webglTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'tint', 'chroma', 'mask', 'edge', 'bandpass', 'hsv_pass'];
+    const webglTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'tint', 'chroma', 'mask', 'edge', 'bandpass', 'hsv_pass', 'hue_shift', 'saturation', 'pixelate'];
 
     if (webglTypes.includes(type)) {
-        // FAST PATH: Hardware Accelerated WebGL execution
+        // Hardware Accelerated WebGL execution
         if (glPipeline.process(type, unifiedInCanvas, getP, params)) {
-            // Draw WebGL output instantly onto our 2D canvas 
-            // (Extremely fast built-in browser composition)
             ctx.drawImage(glPipeline.canvas, 0, 0);
             setUnifiedOutCanvas(canvas);
             return;
         }
-    }
-    
-    // SLOW PATH: Legacy CPU implementations for complex/rare filters 
-    const cpuTypes = ['hue_shift', 'saturation', 'hsv_pass', 'bandpass'];
-    if (cpuTypes.includes(type)) {
-        const inCtx = unifiedInCanvas.getContext('2d', {willReadFrequently: true});
-        const imgData = inCtx.getImageData(0,0,w,h);
-        const data = imgData.data; const len = data.length;
-        
-        if (type === 'hue_shift' || type === 'saturation') {
-            let hShift = type==='hue_shift' ? getP('deg', 0) : 0, sScale = type==='saturation' ? getP('amount', 100) / 100 : 1;
-            const angle = hShift * Math.PI / 180, c = Math.cos(angle), s = Math.sin(angle);
-            const lumR = 0.213, lumG = 0.715, lumB = 0.072;
-            const m0 = (lumR + (1 - lumR) * c - lumR * s) * sScale + lumR * (1 - sScale), m1 = (lumG - lumG * c - lumG * s) * sScale + lumG * (1 - sScale), m2 = (lumB - lumB * c + (1 - lumB) * s) * sScale + lumB * (1 - sScale);
-            const m3 = (lumR - lumR * c + 0.143 * s) * sScale + lumR * (1 - sScale), m4 = (lumG + (1 - lumG) * c + 0.140 * s) * sScale + lumG * (1 - sScale), m5 = (lumB - lumB * c - 0.283 * s) * sScale + lumB * (1 - sScale);
-            const m6 = (lumR - lumR * c - (1 - lumR) * s) * sScale + lumR * (1 - sScale), m7 = (lumG - lumG * c + lumG * s) * sScale + lumG * (1 - sScale), m8 = (lumB + (1 - lumB) * c + lumB * s) * sScale + lumB * (1 - sScale);
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                let r = data[i], g = data[i+1], b = data[i+2];
-                data[i] = r * m0 + g * m1 + b * m2; data[i+1] = r * m3 + g * m4 + b * m5; data[i+2] = r * m6 + g * m7 + b * m8;
-            }
-        }
-        else if (type === 'hsv_pass') {
-            const targetHue = getP('target', 0) / 360, tolHue = getP('tol', 30) / 360, targetSat = getP('s_target', 100) / 100, tolSat = getP('s_tol', 75) / 100;
-            const targetVal = getP('v_target', 100) / 100, tolVal = getP('v_tol', 100) / 100, mode = params.mode || 'transparent';
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                let r = data[i]/255, g = data[i+1]/255, b = data[i+2]/255, max = Math.max(r, g, b), min = Math.min(r, g, b);
-                let h, s, v = max, d = max - min; s = max === 0 ? 0 : d / max;
-                if (max === min) h = 0;
-                else {
-                    switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; }
-                    h /= 6;
-                }
-                let isOutside = false, hDist = Math.abs(h - targetHue);
-                if (hDist > 0.5) hDist = 1.0 - hDist;
-                if (hDist > tolHue || Math.abs(s - targetSat) > tolSat || Math.abs(v - targetVal) > tolVal) {
-                    isOutside = true; if (mode === 'black') v = 0; else if (mode === 'grayscale') s = 0;
-                }
-                let newR, newG, newB;
-                if (s === 0) newR = newG = newB = v;
-                else {
-                    let i_h = Math.floor(h * 6), f = h * 6 - i_h, p = v * (1 - s), q = v * (1 - f * s), t = v * (1 - (1 - f) * s);
-                    switch (i_h % 6) { case 0: newR = v, newG = t, newB = p; break; case 1: newR = q, newG = v, newB = p; break; case 2: newR = p, newG = v, newB = t; break; case 3: newR = p, newG = q, newB = v; break; case 4: newR = t, newG = p, newB = v; break; case 5: newR = v, newG = p, newB = q; break; }
-                }
-                if (mode === 'mask') { let maskVal = isOutside ? 0 : 255; data[i] = data[i+1] = data[i+2] = maskVal; data[i+3] = 255; } 
-                else { data[i] = newR * 255; data[i+1] = newG * 255; data[i+2] = newB * 255; if (isOutside && mode === 'transparent') data[i+3] = 0; }
-            }
-        }
-        else if (type === 'bandpass') {
-            const med = parseInt(getP('median', 127)), rh = parseInt(getP('range', 50))/2, targetChannel = params.channel || 'luma';
-            for (let i=0; i<len; i+=4) {
-                if (data[i+3] === 0) continue;
-                let val; if (targetChannel === 'red') val = data[i]; else if (targetChannel === 'green') val = data[i+1]; else if (targetChannel === 'blue') val = data[i+2]; else val = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2]; 
-                if (Math.abs(val - med) > rh) { data[i] = data[i+1] = data[i+2] = 0; }
-            }
-        } 
-        
-        ctx.putImageData(imgData, 0, 0);
-        setUnifiedOutCanvas(canvas);
     }
 }
 
