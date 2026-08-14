@@ -632,8 +632,8 @@ function applyNodeEffect(node, inputs) {
         }
                 
         const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
-        const downscaleW = 64;
-        const downscaleH = 64;
+        const downscaleW = 256;
+        const downscaleH = 256;
         if (!node.downCanvas) node.downCanvas = createInternalCanvas(downscaleW, downscaleH);
         node.downCanvas.getContext('2d').drawImage(unifiedInCanvas, 0, 0, downscaleW, downscaleH);
                 
