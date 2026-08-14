@@ -45,6 +45,7 @@ const NODE_DEFS = {
     blend: { typeId: 29, label: 'Blend', category: 'Image Processing', inPorts: ['bg', 'fg'], outPorts: ['out'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add', 'multiply', 'screen', 'difference'], default: 'mix' }, { id: 'mix', label: 'Amount', type: 'range', min: 0, max: 100, default: 50 }] },
     get_position: { typeId: 30, label: 'Get Position (Mask)', category: 'Image Processing', inPorts: ['in'], outPorts: ['x', 'y', 'found'] },
     draw_point: { typeId: 31, label: 'Draw Point', category: 'Image Processing', inPorts: ['in'], outPorts: ['out'], params: [ {id: 'x', label:'X (px)', type:'number', default: 320}, {id: 'y', label:'Y (px)', type:'number', default: 240} ] },
+    get_pixel: { typeId: 32, label: 'Sample Pixel', category: 'Image Processing', inPorts: ['in'], outPorts: ['c1', 'c2', 'c3'], params: [ { id: 'mode', label: 'Mode', type: 'select', options: ['RGB', 'HSV'], default: 'RGB' }, { id: 'x', label: 'X (px)', type: 'number', default: 320 }, { id: 'y', label: 'Y (px)', type: 'number', default: 240 } ] },
     
     // 40 - 49: Triggers
     on_start: { typeId: 40, label: 'On Start', category: 'Triggers', inPorts: [], outPorts: ['exec'] },

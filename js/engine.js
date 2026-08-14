@@ -671,6 +671,53 @@ function applyNodeEffect(node, inputs) {
         setUnifiedOutCanvas(canvas); return;
     }
     
+    if (type === 'get_pixel') {
+        if (!unifiedInCanvas) {
+            node.outputData['c1'] = 0;
+            node.outputData['c2'] = 0;
+            node.outputData['c3'] = 0;
+            return;
+        }
+
+        const inCtx = unifiedInCanvas.getContext('2d', { willReadFrequently: true });
+        const x = Math.max(0, Math.min(unifiedInCanvas.width - 1, Math.round(getP('x', 320))));
+        const y = Math.max(0, Math.min(unifiedInCanvas.height - 1, Math.round(getP('y', 240))));
+        
+        // Read exact 1x1 RGBA pixel
+        const pixel = inCtx.getImageData(x, y, 1, 1).data;
+        const rRaw = pixel[0], gRaw = pixel[1], bRaw = pixel[2];
+        const mode = params.mode || 'RGB';
+
+        if (mode === 'RGB') {
+            node.outputData['c1'] = rRaw;
+            node.outputData['c2'] = gRaw;
+            node.outputData['c3'] = bRaw;
+        } else {
+            // Convert RGB to HSV
+            const r = rRaw / 255, g = gRaw / 255, b = bRaw / 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            const d = max - min;
+            
+            let h = 0;
+            const s = max === 0 ? 0 : (d / max) * 100;
+            const v = max * 100;
+
+            if (d !== 0) {
+                switch (max) {
+                    case r: h = ((g - b) / d + (g < b ? 6 : 0)); break;
+                    case g: h = ((b - r) / d + 2); break;
+                    case b: h = ((r - g) / d + 4); break;
+                }
+                h = Math.round(h * 60);
+            }
+
+            node.outputData['c1'] = h;                      // Hue: 0 - 360 deg
+            node.outputData['c2'] = Math.round(s * 10) / 10; // Sat: 0 - 100 %
+            node.outputData['c3'] = Math.round(v * 10) / 10; // Val: 0 - 100 %
+        }
+        return;
+    }
+
     if (!unifiedInCanvas && type !== 'blend') return; 
 
     if (type === 'fps') {
