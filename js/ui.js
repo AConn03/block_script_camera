@@ -453,7 +453,7 @@ document.getElementById('confirm-var').onclick = () => {
 };
 
 function initBuilder() {
-    const palTabs = document.getElementById('palette-tabs'), categories = ['I/O', 'Image Processing', 'Triggers', 'Variables', 'Math']; let activeCategory = 'Image Processing';
+    const palTabs = document.getElementById('palette-tabs'), categories = ['I/O', 'Image Processing', 'Triggers', 'Variables', 'Math', 'Enviorment']; let activeCategory = 'Image Processing';
     categories.forEach(cat => {
         const btn = document.createElement('div'); btn.className = `palette-tab ${cat === activeCategory ? 'active' : ''}`; btn.textContent = cat;
         btn.onclick = () => { document.querySelectorAll('.palette-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); activeCategory = cat; renderPalette(cat); };

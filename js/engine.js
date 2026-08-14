@@ -502,7 +502,41 @@ function applyNodeEffect(node, inputs) {
     if (type === 'screen_height') { node.outputData['val'] = videoHeight || 0; return;}
     if (type === 'time_sec') { node.outputData['val'] = Date.now() / 1000; return; }
     if (type === 'time_date') { node.outputData['val'] = new Date().getDate(); return; }
+    if (type === 'video_duration') {
+    const vid = document.getElementById('single-video');
+    const fps = getP('fps', 30);
+    const dur = (vid && !isNaN(vid.duration) && isFinite(vid.duration)) ? vid.duration : 0;
+    node.outputData['val'] = Math.floor(dur * fps);
+    return;
+    }
+    if (type === 'live_fps') {
+    const now = performance.now();
+    if (!node.lastTime) {
+        node.lastTime = now;
+        node.frameCount = 0;
+        node.fpsValue = 60;
+    }
     
+    node.frameCount++;
+    const elapsed = now - node.lastTime;
+    
+    // Updates reading every 500ms for stable, readable values without flickering
+    if (elapsed >= 500) {
+        node.fpsValue = Math.round((node.frameCount * 1000) / elapsed);
+        node.frameCount = 0;
+        node.lastTime = now;
+    }
+    
+    node.outputData['val'] = node.fpsValue;
+    return;
+    }
+    if (type === 'video_frame') {
+        const vid = document.getElementById('single-video');
+        const fps = getP('fps', 30);
+        const curTime = (vid && !isNaN(vid.currentTime)) ? vid.currentTime : 0;
+        node.outputData['val'] = Math.floor(curTime * fps);
+        return;
+    }
     if (type === 'math_pos_convert') {
         const mode = params.mode || '% to px';
         let xIn = getP('x_in', 50), yIn = getP('y_in', 50);
@@ -764,20 +798,6 @@ function applyNodeEffect(node, inputs) {
         
         ctx.putImageData(imgData, 0, 0);
         setUnifiedOutCanvas(canvas);
-    }
-    if (type === 'video_duration') {
-    // singleVideo is the HTML5 video element where uploads are loaded
-    const duration = (singleVideo && !isNaN(singleVideo.duration)) ? singleVideo.duration : 0;
-    node.outputData['val'] = Math.round(duration * 100) / 100;
-    return;
-    }
-
-    if (type === 'video_frame') {
-        const fps = getP('fps', 30);
-        const curTime = (singleVideo && !isNaN(singleVideo.currentTime)) ? singleVideo.currentTime : 0;
-        // Calculate current frame number from playback timestamp and assumed framerate
-        node.outputData['val'] = Math.floor(curTime * fps);
-        return;
     }
 }
 

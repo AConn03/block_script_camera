@@ -55,8 +55,7 @@ const NODE_DEFS = {
     capture_frame: { label: 'Capture Frame', category: 'Triggers', inPorts: ['exec', 'video'], outPorts: ['video'] },
     cam_pause: { label: 'Pause Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
     cam_resume: { label: 'Resume Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
-    video_duration: { label: 'Video Duration (s)', category: 'Math', inPorts: [], outPorts: ['val'] },
-    video_frame: { label: 'Video Frame', category: 'Math', inPorts: [], outPorts: ['val'], params: [ { id: 'fps', label: 'Video FPS', type: 'number', default: 30 } ] },
+    
 
     math_add: { label: 'Add', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
     math_sub: { label: 'Subtract', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
@@ -68,12 +67,16 @@ const NODE_DEFS = {
     math_tan: { label: 'Tan', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:0}] },
     math_pi: { label: 'Pi', category: 'Math', inPorts: [], outPorts: ['out'] },
     math_log: { label: 'Log', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'Value', type: 'number', default:1}] },
-    screen_width: { label: 'Screen Width', category: 'Math', inPorts: [], outPorts: ['val'] },
-    screen_height: { label: 'Screen Height', category: 'Math', inPorts: [], outPorts: ['val']},
-    time_sec: { label: 'Time (sec)', category: 'Math', inPorts: [], outPorts: ['val'] },
-    time_date: { label: 'Date (day)', category: 'Math', inPorts: [], outPorts: ['val'] },
     math_pos_convert: { label: 'Pos % <-> px', category: 'Math', inPorts: [], outPorts: ['x', 'y'], params: [{id: 'mode', label: 'Mode', type: 'select', options: ['% to px', 'px to %'], default: '% to px'}, {id: 'x_in', label: 'X In', type: 'number', default: 50}, {id: 'y_in', label: 'Y In', type: 'number', default: 50}] },
     
+    video_duration: { label: 'Video Total Frames', category: 'Enviorment', inPorts: [], outPorts: ['val'], params: [ { id: 'fps', label: 'Video FPS', type: 'number', default: 30 } ] },
+    video_frame: { label: 'Video Frame', category: 'Enviorment', inPorts: [], outPorts: ['val'], params: [ { id: 'fps', label: 'Video FPS', type: 'number', default: 30 } ] },
+    live_fps: { label: 'Live FPS', category: 'Enviorment', inPorts: [], outPorts: ['val'] },
+    screen_width: { label: 'Screen Width', category: 'Enviorment', inPorts: [], outPorts: ['val'] },
+    screen_height: { label: 'Screen Height', category: 'Enviorment', inPorts: [], outPorts: ['val']},
+    time_sec: { label: 'Time (sec)', category: 'Enviorment', inPorts: [], outPorts: ['val'] },
+    time_date: { label: 'Date (day)', category: 'Enviorment', inPorts: [], outPorts: ['val'] },
+
     var_get: { label: 'Get Variable', category: 'Variables', hideInPalette: true, inPorts: [], outPorts: ['val'] },
     var_set: { label: 'Set Variable', category: 'Variables', hideInPalette: true, inPorts: ['exec'], outPorts: ['exec'], params: [{id: 'varName', label: 'Variable', type: 'var_select', default: ''}, {id: 'val', label: 'Value', type: 'number', default:0}] },
 };
