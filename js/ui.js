@@ -515,9 +515,18 @@ function renderScriptList() {
     });
 }
 
+function getNodeInputSlotList(type) {
+    const def = NODE_DEFS[type] || {};
+    return [...(def.inPorts || []), ...(def.params ? def.params.map(p => p.id) : [])];
+}
+
+function getNodeOutputSlotList(type) {
+    const def = NODE_DEFS[type] || {};
+    return def.outPorts || [];
+}
+
 function generateCleanExportJSON() {
     const nodeKeys = Object.keys(nodes);
-    // Map raw UUIDs to clean sequential numeric IDs (1 to total nodes)
     const idMap = {};
     nodeKeys.forEach((rawId, index) => {
         idMap[rawId] = index + 1;
@@ -525,43 +534,189 @@ function generateCleanExportJSON() {
 
     const exportNodes = nodeKeys.map(rawId => {
         const n = nodes[rawId];
-        const numId = idMap[rawId];
-
-        // Map incoming connections into this node
-        const inputs = wires
-            .filter(w => w.toNode === rawId)
-            .map(w => ({
-                slot: w.toPort,
-                fromNode: idMap[w.fromNode] || w.fromNode,
-                fromSlot: w.fromPort
-            }));
-
-        // Map outgoing connections from this node
-        const outputs = wires
-            .filter(w => w.fromNode === rawId)
-            .map(w => ({
-                slot: w.fromPort,
-                toNode: idMap[w.toNode] || w.toNode,
-                toSlot: w.toPort
-            }));
-
+        const def = NODE_DEFS[n.type] || {};
+        
         const cleanNode = {
-            id: numId,
-            type: n.type
+            id: idMap[rawId],
+            t: def.typeId || n.type
         };
 
-        if (n.params && Object.keys(n.params).length > 0) cleanNode.params = n.params;
-        if (inputs.length > 0) cleanNode.inputs = inputs;
-        if (outputs.length > 0) cleanNode.outputs = outputs;
+        // 1. Positional Parameters: "p": [val0, val1, ...]
+        if (def.params && def.params.length > 0 && n.params) {
+            const pArray = [];
+            let hasCustomParam = false;
+
+            def.params.forEach((pDef, pIdx) => {
+                const currentVal = n.params[pDef.id];
+                const defVal = String(pDef.default);
+                
+                if (currentVal !== undefined && String(currentVal) !== defVal) {
+                    // Cast numeric types back to numbers to keep JSON clean
+                    pArray[pIdx] = (!isNaN(Number(currentVal)) && typeof currentVal !== 'boolean') 
+                        ? Number(currentVal) 
+                        : currentVal;
+                    hasCustomParam = true;
+                } else {
+                    pArray[pIdx] = null;
+                }
+            });
+
+            if (hasCustomParam) {
+                // Trim trailing nulls
+                while (pArray.length > 0 && pArray[pArray.length - 1] === null) {
+                    pArray.pop();
+                }
+                cleanNode.p = pArray;
+            }
+        }
+
+        // 2. Positional Inputs: "in": ["fromId:fromPortIdx", null, ...]
+        const inSlots = getNodeInputSlotList(n.type);
+        const inputWires = wires.filter(w => w.toNode === rawId);
+
+        if (inputWires.length > 0) {
+            const inArray = [];
+            inSlots.forEach((slotName, slotIdx) => {
+                const wire = inputWires.find(w => w.toPort === slotName);
+                if (wire) {
+                    const fromNode = nodes[wire.fromNode];
+                    const fromOutSlots = getNodeOutputSlotList(fromNode ? fromNode.type : '');
+                    const fromPortIdx = Math.max(0, fromOutSlots.indexOf(wire.fromPort));
+                    inArray[slotIdx] = `${idMap[wire.fromNode]}:${fromPortIdx}`;
+                } else {
+                    inArray[slotIdx] = null;
+                }
+            });
+
+            while (inArray.length > 0 && inArray[inArray.length - 1] === null) {
+                inArray.pop();
+            }
+
+            if (inArray.length > 0) cleanNode.in = inArray;
+        }
 
         return cleanNode;
     });
 
-    return JSON.stringify({
+    const outObj = {
         name: activeScriptName || "Script",
-        totalNodes: exportNodes.length,
         nodes: exportNodes
-    }, null, 2);
+    };
+    
+    if (window.userVarNames && window.userVarNames.length > 0) {
+        outObj.vars = window.userVarNames;
+    }
+
+    return JSON.stringify(outObj);
+}
+
+function importGraphFromCleanJSON(rawJsonString) {
+    try {
+        const data = JSON.parse(rawJsonString);
+        if (!data || !data.nodes || !Array.isArray(data.nodes)) {
+            throw new Error("Invalid format: Missing 'nodes' array.");
+        }
+
+        // Reset workspace
+        document.getElementById('nodes-container').innerHTML = '';
+        document.getElementById('ui-layer').innerHTML = '';
+        nodes = {};
+        wires = [];
+        window.userVars = {};
+        window.userVarNames = data.vars || [];
+        window.userVarNames.forEach(n => window.userVars[n] = 0);
+
+        const idMap = {};
+        data.nodes.forEach(n => {
+            idMap[n.id] = generateId();
+        });
+
+        // 1. Create nodes and reconstruct parameters from positional array 'p'
+        const cx = 50000, cy = 50000;
+        data.nodes.forEach((n, idx) => {
+            const internalId = idMap[n.id];
+            const typeStr = getNodeTypeById(n.t || n.type) || (typeof n.type === 'string' ? n.type : null);
+            
+            if (!typeStr) {
+                console.warn(`Unknown node type ID: ${n.t || n.type}`);
+                return;
+            }
+
+            const def = NODE_DEFS[typeStr] || {};
+            const nodeParams = {};
+
+            // Unpack positional 'p' array into named parameter keys
+            if (n.p && Array.isArray(n.p) && def.params) {
+                n.p.forEach((val, pIdx) => {
+                    if (val !== null && val !== undefined && def.params[pIdx]) {
+                        nodeParams[def.params[pIdx].id] = val;
+                    }
+                });
+            } else if (n.params && typeof n.params === 'object') {
+                // Fallback for object params
+                Object.assign(nodeParams, n.params);
+            }
+
+            const x = cx + (idx * 280) - ((data.nodes.length * 280) / 2);
+            const y = cy;
+            createNode(typeStr, x, y, internalId, nodeParams);
+        });
+
+        // 2. Rebuild wires from ordered input slots
+        data.nodes.forEach(n => {
+            const toNodeId = idMap[n.id];
+            const typeStr = getNodeTypeById(n.t || n.type) || n.type;
+            
+            if (n.in && Array.isArray(n.in) && typeStr) {
+                const inSlots = getNodeInputSlotList(typeStr);
+
+                n.in.forEach((fromStr, slotIdx) => {
+                    if (!fromStr || typeof fromStr !== 'string') return;
+                    const toPort = inSlots[slotIdx];
+                    if (!toPort) return;
+
+                    const [fromIdNum, fromPortIdxOrName] = fromStr.split(':');
+                    const fromNodeId = idMap[fromIdNum];
+                    const fromNodeData = data.nodes.find(item => item.id == fromIdNum);
+
+                    if (fromNodeId && toNodeId && fromNodeData) {
+                        const fromTypeStr = getNodeTypeById(fromNodeData.t || fromNodeData.type) || fromNodeData.type;
+                        const outSlots = getNodeOutputSlotList(fromTypeStr);
+                        const fromPort = !isNaN(parseInt(fromPortIdxOrName))
+                            ? outSlots[parseInt(fromPortIdxOrName)] || outSlots[0]
+                            : fromPortIdxOrName;
+
+                        if (fromPort) {
+                            wires.push({
+                                id: generateId(),
+                                fromNode: fromNodeId,
+                                fromPort: fromPort,
+                                toNode: toNodeId,
+                                toPort: toPort
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        activeScriptName = data.name || "Imported Script";
+        rebuildGraphOrder();
+        drawWires();
+        updateLabels();
+
+        if (typeof window.autoLayoutNodes === 'function') {
+            window.autoLayoutNodes();
+        } else {
+            centerWorkspace();
+        }
+
+        showToast(`Loaded "${activeScriptName}" successfully!`);
+        return true;
+    } catch (err) {
+        showToast("Import failed: " + err.message, true);
+        return false;
+    }
 }
 
 // Download helper
@@ -588,106 +743,6 @@ document.getElementById('export-script-btn').onclick = () => {
 document.getElementById('close-export-btn').onclick = () => {
     exportModal.classList.remove('active');
 };
-
-function importGraphFromCleanJSON(rawJsonString) {
-    try {
-        const data = JSON.parse(rawJsonString);
-        if (!data || !data.nodes || !Array.isArray(data.nodes)) {
-            throw new Error("Invalid format: Missing 'nodes' array.");
-        }
-
-        // Reset current workspace
-        document.getElementById('nodes-container').innerHTML = '';
-        document.getElementById('ui-layer').innerHTML = '';
-        nodes = {};
-        wires = [];
-        window.userVars = {};
-        window.userVarNames = data.userVarNames || [];
-        window.userVarNames.forEach(n => window.userVars[n] = 0);
-
-        // Map numeric IDs (e.g. 1, 2, 3) to internal engine IDs
-        const idMap = {};
-        data.nodes.forEach(n => {
-            idMap[n.id] = generateId();
-        });
-
-        // 1. Instantiate nodes
-        const cx = 50000, cy = 50000;
-        data.nodes.forEach((n, idx) => {
-            const internalId = idMap[n.id];
-            const nodeParams = n.params || {};
-            // Place initially in a row around center
-            const x = cx + (idx * 280) - ((data.nodes.length * 280) / 2);
-            const y = cy;
-            createNode(n.type, x, y, internalId, nodeParams);
-        });
-
-        // 2. Rebuild wires from inputs / outputs
-        const wireSet = new Set();
-        data.nodes.forEach(n => {
-            const toNodeId = idMap[n.id];
-
-            // Reconstruct from 'inputs' slot list
-            if (n.inputs && Array.isArray(n.inputs)) {
-                n.inputs.forEach(inp => {
-                    const fromNodeId = idMap[inp.fromNode];
-                    if (fromNodeId && toNodeId) {
-                        const wireKey = `${fromNodeId}:${inp.fromSlot}->${toNodeId}:${inp.slot}`;
-                        if (!wireSet.has(wireKey)) {
-                            wireSet.add(wireKey);
-                            wires.push({
-                                id: generateId(),
-                                fromNode: fromNodeId,
-                                fromPort: inp.fromSlot,
-                                toNode: toNodeId,
-                                toPort: inp.slot
-                            });
-                        }
-                    }
-                });
-            }
-
-            // Fallback: Reconstruct from 'outputs' list if present
-            if (n.outputs && Array.isArray(n.outputs)) {
-                n.outputs.forEach(out => {
-                    const fromNodeId = toNodeId;
-                    const destNodeId = idMap[out.toNode];
-                    if (fromNodeId && destNodeId) {
-                        const wireKey = `${fromNodeId}:${out.slot}->${destNodeId}:${out.toSlot}`;
-                        if (!wireSet.has(wireKey)) {
-                            wireSet.add(wireKey);
-                            wires.push({
-                                id: generateId(),
-                                fromNode: fromNodeId,
-                                fromPort: out.slot,
-                                toNode: destNodeId,
-                                toPort: out.toSlot
-                            });
-                        }
-                    }
-                });
-            }
-        });
-
-        activeScriptName = data.name || "Imported Script";
-        rebuildGraphOrder();
-        drawWires();
-        updateLabels();
-
-        // 3. Automatically layout tree and center camera
-        if (typeof window.autoLayoutNodes === 'function') {
-            window.autoLayoutNodes();
-        } else {
-            centerWorkspace();
-        }
-
-        showToast(`Loaded "${activeScriptName}" successfully!`);
-        return true;
-    } catch (err) {
-        showToast("Import failed: " + err.message, true);
-        return false;
-    }
-}
 
 // Modal bindings
 const importModal = document.getElementById('import-modal');
