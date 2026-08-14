@@ -768,16 +768,17 @@ function applyNodeEffect(node, inputs) {
 }
 
 function renderFinalOutput(sourceCanvas) {
-    const targets = vrMode ? [canvasLeft, canvasRight] : [canvasSingle];
-    if (!sourceCanvas) { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; canvasSingle.style.display = 'none'; previewCanvas.style.display = 'none'; return; }
-    targets.forEach(c => {
-        c.style.display = 'block';
-        if (c.width !== sourceCanvas.width) c.width = sourceCanvas.width;
-        if (c.height !== sourceCanvas.height) c.height = sourceCanvas.height;
-        c.getContext('2d').drawImage(sourceCanvas, 0, 0);
-    });
-    
-    if (vrMode) canvasSingle.style.display = 'none'; else { canvasLeft.style.display = 'none'; canvasRight.style.display = 'none'; }
+    if (!sourceCanvas) { 
+        canvasSingle.style.display = 'none'; 
+        previewCanvas.style.display = 'none'; 
+        return; 
+    }
+
+    canvasSingle.style.display = 'block';
+    if (canvasSingle.width !== sourceCanvas.width) canvasSingle.width = sourceCanvas.width;
+    if (canvasSingle.height !== sourceCanvas.height) canvasSingle.height = sourceCanvas.height;
+    canvasSingle.getContext('2d').drawImage(sourceCanvas, 0, 0);
+
     previewCanvas.style.display = 'block';
     if (previewCanvas.width !== sourceCanvas.width) previewCanvas.width = sourceCanvas.width;
     if (previewCanvas.height !== sourceCanvas.height) previewCanvas.height = sourceCanvas.height;

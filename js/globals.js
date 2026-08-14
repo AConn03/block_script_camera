@@ -85,17 +85,19 @@ let draggingWire = null, selectedWire = null, pendingPort = null, dragStartPos =
 let isPanning = false, panStartX = 0, panStartY = 0, panStartScrollLeft = 0, panStartScrollTop = 0;
 let currentZoom = 1, activePointers = new Map(), lastPinchDist = null;
 let evalOrder = [], hasCycleError = false;
-let stream = null, usingBackCamera = true, vrMode = false, vrOffset = 0, renderLoopId = null, hideControlsTimeout = null;
+let stream = null, usingBackCamera = true, renderLoopId = null, hideControlsTimeout = null;
 let videoWidth = 640, videoHeight = 480;
 let taintedNodes = new Set();
 let errorDetails = {};
+
+
 
 const workspaceViewport = document.getElementById('workspace-viewport');
 const workspaceInner = document.getElementById('workspace-inner');
 const nodesContainer = document.getElementById('nodes-container');
 const wiresSvg = document.getElementById('wires-svg');
-const videoLeft = document.getElementById('video-left'), videoRight = document.getElementById('video-right'), singleVideo = document.getElementById('single-video');
-const canvasLeft = document.getElementById('canvas-left'), canvasRight = document.getElementById('canvas-right'), canvasSingle = document.getElementById('canvas-single');
+const singleVideo = document.getElementById('single-video');
+const canvasSingle = document.getElementById('canvas-single');
 const previewCanvas = document.getElementById('preview-canvas');
 const camControlsPanel = document.getElementById('controls-panel'), viewCam = document.getElementById('view-camera');
 const palettePanel = document.getElementById('palette-panel'), scriptsPanel = document.getElementById('scripts-panel'), sidebarOverlay = document.getElementById('sidebar-overlay');

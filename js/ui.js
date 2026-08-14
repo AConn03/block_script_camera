@@ -686,6 +686,5 @@ document.getElementById('nav-builder').onclick = function() {
 
 // --- Boot ---
 initBuilder();
-updateVRMode();
 window.addEventListener('resize', drawWires);
 renderLoop();
