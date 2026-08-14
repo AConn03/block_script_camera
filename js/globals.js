@@ -55,7 +55,9 @@ const NODE_DEFS = {
     capture_frame: { label: 'Capture Frame', category: 'Triggers', inPorts: ['exec', 'video'], outPorts: ['video'] },
     cam_pause: { label: 'Pause Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
     cam_resume: { label: 'Resume Camera', category: 'Triggers', inPorts: ['exec'], outPorts: ['exec'] },
-    
+    video_duration: { label: 'Video Duration (s)', category: 'Math', inPorts: [], outPorts: ['val'] },
+    video_frame: { label: 'Video Frame', category: 'Math', inPorts: [], outPorts: ['val'], params: [ { id: 'fps', label: 'Video FPS', type: 'number', default: 30 } ] },
+
     math_add: { label: 'Add', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
     math_sub: { label: 'Subtract', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },
     math_mult: { label: 'Multiply', category: 'Math', inPorts: [], outPorts: ['out'], params: [{id: 'a', label: 'A', type: 'number', default:0}, {id: 'b', label: 'B', type: 'number', default:0}] },

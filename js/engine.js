@@ -765,6 +765,20 @@ function applyNodeEffect(node, inputs) {
         ctx.putImageData(imgData, 0, 0);
         setUnifiedOutCanvas(canvas);
     }
+    if (type === 'video_duration') {
+    // singleVideo is the HTML5 video element where uploads are loaded
+    const duration = (singleVideo && !isNaN(singleVideo.duration)) ? singleVideo.duration : 0;
+    node.outputData['val'] = Math.round(duration * 100) / 100;
+    return;
+    }
+
+    if (type === 'video_frame') {
+        const fps = getP('fps', 30);
+        const curTime = (singleVideo && !isNaN(singleVideo.currentTime)) ? singleVideo.currentTime : 0;
+        // Calculate current frame number from playback timestamp and assumed framerate
+        node.outputData['val'] = Math.floor(curTime * fps);
+        return;
+    }
 }
 
 function renderFinalOutput(sourceCanvas) {
