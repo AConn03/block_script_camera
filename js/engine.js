@@ -146,6 +146,76 @@ class WebGLPipeline {
                 gl_FragColor = vec4(c.rgb, alpha);
             }
         `);
+
+        this.createProgram('bandpass', precision + `
+            varying vec2 v_uv;
+            uniform sampler2D u_image;
+            uniform float u_med;
+            uniform float u_rh;
+            uniform float u_channel; // 0 = luma, 1 = red, 2 = green, 3 = blue
+            void main() {
+                vec4 c = texture2D(u_image, v_uv);
+                if (c.a == 0.0) { gl_FragColor = c; return; }
+                float val = 0.0;
+                if (u_channel > 2.5) val = c.b * 255.0;
+                else if (u_channel > 1.5) val = c.g * 255.0;
+                else if (u_channel > 0.5) val = c.r * 255.0;
+                else val = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b) * 255.0;
+
+                if (abs(val - u_med) > u_rh) {
+                    gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+                } else {
+                    gl_FragColor = c;
+                }
+            }
+        `);
+
+        this.createProgram('hsv_pass', precision + `
+            varying vec2 v_uv;
+            uniform sampler2D u_image;
+            uniform float u_targetH;
+            uniform float u_tolH;
+            uniform float u_targetS;
+            uniform float u_tolS;
+            uniform float u_targetV;
+            uniform float u_tolV;
+            uniform float u_mode; // 0=transparent, 1=mask, 2=grayscale, 3=black
+
+            vec3 rgb2hsv(vec3 c) {
+                vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+                vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+                vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+                float d = q.x - min(q.w, q.y);
+                float e = 1.0e-10;
+                return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+            }
+
+            void main() {
+                vec4 c = texture2D(u_image, v_uv);
+                if (c.a == 0.0) { gl_FragColor = c; return; }
+
+                vec3 hsv = rgb2hsv(c.rgb);
+                float h = hsv.x;
+                float s = hsv.y;
+                float v = hsv.z;
+
+                float hDist = abs(h - u_targetH);
+                if (hDist > 0.5) hDist = 1.0 - hDist;
+
+                bool isOutside = (hDist > u_tolH) || (abs(s - u_targetS) > u_tolS) || (abs(v - u_targetV) > u_tolV);
+
+                if (u_mode > 2.5) { // black
+                    gl_FragColor = isOutside ? vec4(0.0, 0.0, 0.0, 1.0) : c;
+                } else if (u_mode > 1.5) { // grayscale
+                    float gray = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+                    gl_FragColor = isOutside ? vec4(vec3(gray), c.a) : c;
+                } else if (u_mode > 0.5) { // mask
+                    gl_FragColor = isOutside ? vec4(0.0, 0.0, 0.0, 1.0) : vec4(1.0, 1.0, 1.0, 1.0);
+                } else { // transparent
+                    gl_FragColor = isOutside ? vec4(0.0) : c;
+                }
+            }
+        `);
     }
 
     process(type, inputCanvas, getP, params) {
@@ -186,6 +256,22 @@ class WebGLPipeline {
             gl.uniform1f(gl.getUniformLocation(prog, "u_binary"), params.mode === 'binary' ? 1.0 : 0.0);
         } else if (type === 'mask') {
             gl.uniform1f(gl.getUniformLocation(prog, "u_invert"), params.invert === 'true' ? 1.0 : 0.0);
+        } else if (type === 'bandpass') {
+            const ch = params.channel || 'luma';
+            const chNum = ch === 'red' ? 1.0 : (ch === 'green' ? 2.0 : (ch === 'blue' ? 3.0 : 0.0));
+            gl.uniform1f(gl.getUniformLocation(prog, "u_channel"), chNum);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_med"), getP('median', 127));
+            gl.uniform1f(gl.getUniformLocation(prog, "u_rh"), getP('range', 50) / 2.0);
+        } else if (type === 'hsv_pass') {
+            const mode = params.mode || 'transparent';
+            const modeNum = mode === 'mask' ? 1.0 : (mode === 'grayscale' ? 2.0 : (mode === 'black' ? 3.0 : 0.0));
+            gl.uniform1f(gl.getUniformLocation(prog, "u_targetH"), getP('target', 0) / 360.0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_tolH"), getP('tol', 30) / 360.0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_targetS"), getP('s_target', 100) / 100.0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_tolS"), getP('s_tol', 75) / 100.0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_targetV"), getP('v_target', 100) / 100.0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_tolV"), getP('v_tol', 100) / 100.0);
+            gl.uniform1f(gl.getUniformLocation(prog, "u_mode"), modeNum);
         }
 
         // Draw quad
@@ -774,8 +860,8 @@ function applyNodeEffect(node, inputs) {
         setUnifiedOutCanvas(canvas); return;
     }
 
-    const webglTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'tint', 'chroma', 'mask', 'edge'];
-    
+    const webglTypes = ['grayscale', 'invert', 'brightness', 'contrast', 'tint', 'chroma', 'mask', 'edge', 'bandpass', 'hsv_pass'];
+
     if (webglTypes.includes(type)) {
         // FAST PATH: Hardware Accelerated WebGL execution
         if (glPipeline.process(type, unifiedInCanvas, getP, params)) {
