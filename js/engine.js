@@ -300,34 +300,34 @@ class WebGLPipeline {
 
     process(type, inputCanvas, getP, params) {
             if (!this.gl) return false;
-
-            // Map node types to their registered shader programs
+    
             let progName = type;
             if (type === 'hue_shift' || type === 'saturation') progName = 'color_adjust';
-
+    
             if (!this.programs[progName]) return false;
             const gl = this.gl;
             const w = inputCanvas.width;
             const h = inputCanvas.height;
-
+    
             if (this.canvas.width !== w || this.canvas.height !== h) {
                 this.canvas.width = w; 
                 this.canvas.height = h;
                 gl.viewport(0, 0, w, h);
             }
-
+    
             const prog = this.programs[progName];
             gl.useProgram(prog);
-
-            // Upload input canvas to GPU texture
+    
+            gl.activeTexture(gl.TEXTURE0);
             gl.bindTexture(gl.TEXTURE_2D, this.texture);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
             gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
             gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, inputCanvas);
-
+    
             gl.uniform1i(prog.u_image, 0);
             gl.uniform2f(prog.u_res, w, h);
+
 
             if (type === 'grayscale' || type === 'invert') {
                 gl.uniform1f(gl.getUniformLocation(prog, "u_amt"), getP('amount', 100) / 100.0);
