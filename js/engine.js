@@ -392,6 +392,9 @@ class WebGLPipeline {
             gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
             gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
 
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+    
             gl.drawArrays(gl.TRIANGLES, 0, 6);
             return true;
         }
@@ -436,6 +439,9 @@ class WebGLPipeline {
             gl.enableVertexAttribArray(posLoc);
             gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer);
             gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0);
+            gl.clearColor(0.0, 0.0, 0.0, 0.0);
+            gl.clear(gl.COLOR_BUFFER_BIT);
+    
             gl.drawArrays(gl.TRIANGLES, 0, 6);
             return true;
         }
@@ -585,20 +591,18 @@ function evaluateFrame() {
             hideErrorIcon(nodeId);
 
             if (node.showPreview && node.previewCanvas) {
-                // Grab the output canvas. Fallback from 'video' to 'out' to the node's internal canvas
                 const outData = node.outputData['video'] || node.outputData['out'] || node.canvas;
                 
-                // SAFEGUARD: Only draw if outData is definitively an HTMLCanvasElement
-                // This prevents the specific "Cannot read properties of undefined (reading 'drawImage')" error
                 if (outData instanceof HTMLCanvasElement) {
                     if (node.previewCanvas.width !== outData.width) {
                         node.previewCanvas.width = outData.width;
                         node.previewCanvas.height = outData.height;
                     }
                     const pCtx = node.previewCanvas.getContext('2d');
+                    // CLEAR PREVIOUS FRAME BEFORE DRAWING TRANSPARENT PIXELS
+                    pCtx.clearRect(0, 0, node.previewCanvas.width, node.previewCanvas.height);
                     pCtx.drawImage(outData, 0, 0);
                 } else {
-                    // Clear the preview safely if the port disconnected mid-run
                     const pCtx = node.previewCanvas.getContext('2d');
                     pCtx.clearRect(0, 0, node.previewCanvas.width, node.previewCanvas.height);
                 }
@@ -1048,12 +1052,16 @@ function renderFinalOutput(sourceCanvas) {
     canvasSingle.style.display = 'block';
     if (canvasSingle.width !== sourceCanvas.width) canvasSingle.width = sourceCanvas.width;
     if (canvasSingle.height !== sourceCanvas.height) canvasSingle.height = sourceCanvas.height;
-    canvasSingle.getContext('2d').drawImage(sourceCanvas, 0, 0);
+    const singleCtx = canvasSingle.getContext('2d');
+    singleCtx.clearRect(0, 0, canvasSingle.width, canvasSingle.height);
+    singleCtx.drawImage(sourceCanvas, 0, 0);
 
     previewCanvas.style.display = 'block';
     if (previewCanvas.width !== sourceCanvas.width) previewCanvas.width = sourceCanvas.width;
     if (previewCanvas.height !== sourceCanvas.height) previewCanvas.height = sourceCanvas.height;
-    previewCanvas.getContext('2d').drawImage(sourceCanvas, 0, 0);
+    const prevCtx = previewCanvas.getContext('2d');
+    prevCtx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+    prevCtx.drawImage(sourceCanvas, 0, 0);
 }
 
 function renderLoop() { 
