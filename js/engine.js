@@ -877,17 +877,28 @@ function applyNodeEffect(node, inputs) {
                 return; 
             }
                     
-            const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
             const downscaleW = 256;
             const downscaleH = 256;
             if (!node.downCanvas) node.downCanvas = createInternalCanvas(downscaleW, downscaleH);
     
             const downCtx = node.downCanvas.getContext('2d', { willReadFrequently: true });
-            downCtx.clearRect(0, 0, downscaleW, downscaleH); // 
+            downCtx.clearRect(0, 0, downscaleW, downscaleH);
             downCtx.drawImage(unifiedInCanvas, 0, 0, downscaleW, downscaleH);
                     
             const data = downCtx.getImageData(0, 0, downscaleW, downscaleH).data;
             let sumX = 0, sumY = 0, count = 0;
+                    
+            for (let i = 0; i < data.length; i += 4) {
+                const a = data[i+3];
+                const r = data[i], g = data[i+1], b = data[i+2];
+                // Detect any non-transparent pixel with visible luminance
+                if (a > 30 && (r > 30 || g > 30 || b > 30)) {
+                    const pixelIndex = (i / 4) | 0;
+                    sumX += pixelIndex % downscaleW;
+                    sumY += (pixelIndex / downscaleW) | 0;
+                    count++;
+                }
+            }
                     
             if (count > 0) {
                 node.outputData['x'] = ((sumX / count) / downscaleW) * vw; 
