@@ -864,45 +864,38 @@ function applyNodeEffect(node, inputs) {
     }
 
     if (type === 'get_position') {
-        let vw = videoWidth || 1, vh = videoHeight || 1;
-        
-        if (!unifiedInCanvas) {   
-            node.outputData['x'] = vw / 2; 
-            node.outputData['y'] = vh / 2; 
-            node.outputData['found'] = false;   
-            return; 
-        }
-                
-        const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
-        const downscaleW = 256;
-        const downscaleH = 256;
-        if (!node.downCanvas) node.downCanvas = createInternalCanvas(downscaleW, downscaleH);
-        node.downCanvas.getContext('2d').drawImage(unifiedInCanvas, 0, 0, downscaleW, downscaleH);
-                
-        const data = node.downCanvas.getContext('2d', {willReadFrequently: true}).getImageData(0,0,downscaleW,downscaleH).data;
-        let sumX = 0, sumY = 0, count = 0;
-                
-        for (let i = 0; i < data.length; i += 4) {
-            if (data[i+3] > 0 && (data[i] > 127 || data[i+1] > 127 || data[i+2] > 127)) {
-                const pixelIndex = (i / 4) | 0;
-                sumX += pixelIndex % downscaleW;
-                sumY += (pixelIndex / downscaleW) | 0;
-                count++;
+            let vw = videoWidth || 1, vh = videoHeight || 1;
+            
+            if (!unifiedInCanvas) {   
+                node.outputData['x'] = vw / 2; 
+                node.outputData['y'] = vh / 2; 
+                node.outputData['found'] = false;   
+                return; 
             }
+                    
+            const wIn = unifiedInCanvas.width || 1, hIn = unifiedInCanvas.height || 1;
+            const downscaleW = 256;
+            const downscaleH = 256;
+            if (!node.downCanvas) node.downCanvas = createInternalCanvas(downscaleW, downscaleH);
+    
+            const downCtx = node.downCanvas.getContext('2d', { willReadFrequently: true });
+            downCtx.clearRect(0, 0, downscaleW, downscaleH); // 
+            downCtx.drawImage(unifiedInCanvas, 0, 0, downscaleW, downscaleH);
+                    
+            const data = downCtx.getImageData(0, 0, downscaleW, downscaleH).data;
+            let sumX = 0, sumY = 0, count = 0;
+                    
+            if (count > 0) {
+                node.outputData['x'] = ((sumX / count) / downscaleW) * vw; 
+                node.outputData['y'] = ((sumY / count) / downscaleH) * vh; 
+                node.outputData['found'] = true;
+            } else {   
+                node.outputData['x'] = vw / 2;   
+                node.outputData['y'] = vh / 2;   
+                node.outputData['found'] = false;   
+            }
+            return;
         }
-                
-        if (count > 0) {
-            // Output raw pixel coordinates instead of percentages
-            node.outputData['x'] = ((sumX / count) / downscaleW) * vw; 
-            node.outputData['y'] = ((sumY / count) / downscaleH) * vh; 
-            node.outputData['found'] = true;
-        } else {   
-            node.outputData['x'] = vw / 2;   
-            node.outputData['y'] = vh / 2;   
-            node.outputData['found'] = false;   
-        }
-        return;
-    }
     
     if (type === 'draw_point') {
         if (unifiedInCanvas) ctx.drawImage(unifiedInCanvas, 0, 0);
