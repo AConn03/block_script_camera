@@ -1,4 +1,4 @@
 {
-  "version": "1786919409",
-  "title": "Refactor get_position handling in engine.js"
+  "version": "1786920896",
+  "title": "Clear canvas before drawing images"
 }
