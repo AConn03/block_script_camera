@@ -989,19 +989,52 @@ function applyNodeEffect(node, inputs) {
     }
     
     if (type === 'accumulate') {
-        const reqFrames = Math.max(2, parseInt(getP('frames', 15))), mode = params.mode || 'average';
-        while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));
-        if (node.buffer.length > reqFrames) node.buffer.length = reqFrames;
-        node.bufIndex = (node.bufIndex || 0) % reqFrames;
-        const curCtx = node.buffer[node.bufIndex].getContext('2d'); curCtx.clearRect(0,0,w,h); curCtx.drawImage(unifiedInCanvas, 0, 0);
-        if(node.frameCount === undefined) node.frameCount = 0; if(node.frameCount < reqFrames) node.frameCount++;
-        const activeFrames = Math.min(node.frameCount, reqFrames);
-        
-        if (mode === 'average') { ctx.globalAlpha = 1.0 / activeFrames; ctx.globalCompositeOperation = 'source-over'; }
-        else if (mode === 'lighten') { ctx.globalCompositeOperation = 'lighten'; } else if (mode === 'darken') { ctx.globalCompositeOperation = 'darken'; }
-        for(let i=0; i<activeFrames; i++) ctx.drawImage(node.buffer[i], 0, 0);
-        ctx.globalAlpha = 1.0; ctx.globalCompositeOperation = 'source-over'; node.bufIndex++; setUnifiedOutCanvas(canvas); return;
-    }
+            const reqFrames = Math.max(2, parseInt(getP('frames', 15)));
+            const mode = params.mode || 'average';
+
+            // 1. Initialize or resize single accumulation canvas
+            if (!node.accCanvas || node.accCanvas.width !== w || node.accCanvas.height !== h) {
+                node.accCanvas = createInternalCanvas(w, h);
+                node.accCtx = node.accCanvas.getContext('2d');
+                node.hasAccum = false;
+            }
+
+            const accCtx = node.accCtx;
+
+            // 2. First frame initialization
+            if (!node.hasAccum) {
+                accCtx.clearRect(0, 0, w, h);
+                accCtx.globalAlpha = 1.0;
+                accCtx.globalCompositeOperation = 'source-over';
+                accCtx.drawImage(unifiedInCanvas, 0, 0);
+                node.hasAccum = true;
+            } else {
+                // 3. O(1) Running Blend - 1 single draw call per tick
+                if (mode === 'average') {
+                    const alpha = 1.0 / reqFrames;
+                    accCtx.globalCompositeOperation = 'source-over';
+                    accCtx.globalAlpha = alpha;
+                    accCtx.drawImage(unifiedInCanvas, 0, 0);
+                } else if (mode === 'lighten') {
+                    accCtx.globalCompositeOperation = 'lighten';
+                    accCtx.globalAlpha = 1.0;
+                    accCtx.drawImage(unifiedInCanvas, 0, 0);
+                } else if (mode === 'darken') {
+                    accCtx.globalCompositeOperation = 'darken';
+                    accCtx.globalAlpha = 1.0;
+                    accCtx.drawImage(unifiedInCanvas, 0, 0);
+                }
+            }
+
+            // Reset context state
+            accCtx.globalAlpha = 1.0;
+            accCtx.globalCompositeOperation = 'source-over';
+
+            // Output accumulated frame
+            ctx.drawImage(node.accCanvas, 0, 0);
+            setUnifiedOutCanvas(canvas);
+            return;
+        }
     
     if (type === 'blend') {
         const bgC = inputs['bg'] instanceof HTMLCanvasElement ? inputs['bg'] : null;
