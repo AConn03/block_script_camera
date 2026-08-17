@@ -4,7 +4,7 @@ async function startCamera() {
                  
         stream = await navigator.mediaDevices.getUserMedia({ 
             video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } }, 
-            audio: true 
+            audio: false 
         });
                  
         singleVideo.src = "";
