@@ -125,7 +125,6 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
         const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
         const isDrop = p.type === 'number' || p.type === 'range';
         
-        // Conditionally create the blue label span ONLY for sliders (range)
         const labelValueHtml = p.type === 'range' 
             ? `<span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span>` 
             : '';
@@ -199,7 +198,6 @@ window.deleteNode = function(id) {
     wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); rebuildGraphOrder(); drawWires();
 };
 
-// Creates or retrieves a top-level overlay container above all node cards
 function getPreviewLayer() {
     let layer = document.getElementById('preview-layer');
     if (!layer) {
@@ -217,7 +215,6 @@ function getPreviewLayer() {
     return layer;
 }
 
-// Syncs preview window coordinates to match its target node
 window.updatePreviewPosition = function(node) {
     if (!node || !node.previewCanvas || !node.showPreview) return;
     const nodeEl = node.domElement;
@@ -261,20 +258,17 @@ window.toggleNodePreview = function(id) {
 };
 
 function closeAllPreviewsAndUIOverlays() {
-    // 1. Wipe all floating node preview canvases
     const previewLayer = document.getElementById('preview-layer');
     if (previewLayer) {
         previewLayer.innerHTML = '';
     }
 
-    // 2. Clear bottom-right builder preview canvas
     const previewCanvas = document.getElementById('preview-canvas');
     if (previewCanvas) {
         const ctx = previewCanvas.getContext('2d');
         if (ctx) ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
     }
 
-    // 3. Clear dynamic UI button overlay layer
     const uiLayer = document.getElementById('ui-layer');
     if (uiLayer) {
         uiLayer.innerHTML = '';
@@ -315,8 +309,6 @@ workspaceViewport.addEventListener('pointerdown', (e) => {
 function getViewportCenterCoordinates() {
     const cx = (workspaceViewport.scrollLeft + workspaceViewport.clientWidth / 2) / currentZoom;
     const cy = (workspaceViewport.scrollTop + workspaceViewport.clientHeight / 2) / currentZoom;
-    
-    // Subtracted 120px and 60px to offset half the width and height of a standard node
     return { 
         x: cx - 120, 
         y: cy - 60 
@@ -422,21 +414,17 @@ function renderPalette(category) {
     });
 }
 
-// js/ui.js -> Replace startDragFromPaletteActual
-
 function startDragFromPaletteActual(e, type, params = null, capture = true) {
     if (isMobile()) closeAllPanels(); 
     
     let x, y;
     const sidebarRight = palettePanel.offsetWidth;
 
-    // Check if the action was a click on the palette or released over the sidebar
     if (!capture || e.clientX <= sidebarRight) {
         const center = getViewportCenterCoordinates();
         x = center.x;
         y = center.y;
     } else {
-        // Dragged directly out onto the canvas board
         const wsRect = workspaceInner.getBoundingClientRect();
         x = (e.clientX - wsRect.left) / currentZoom - 120;
         y = (e.clientY - wsRect.top) / currentZoom - 20;
@@ -548,6 +536,37 @@ function getNodeOutputSlotList(type) {
     return def.outPorts || [];
 }
 
+// --- Compression Helpers for Sharing ---
+const TOKEN_MAP = [
+    ['{"name":', '§'],
+    ['"nodes":', '©'],
+    ['"vars":', 'ª'],
+    ['"id":', '¬'],
+    ['"t":', 'µ'],
+    ['"p":', '¶'],
+    ['"in":', '±'],
+    ['null', '~'],
+    ['true', '†'],
+    ['false', '‡']
+];
+
+function compressScriptString(jsonStr) {
+    let compressed = jsonStr;
+    TOKEN_MAP.forEach(([full, char]) => {
+        compressed = compressed.replaceAll(full, char);
+    });
+    return `^1:${compressed}`;
+}
+
+function decompressScriptString(str) {
+    if (!str.startsWith('^1:')) return str;
+    let decompressed = str.slice(3);
+    TOKEN_MAP.forEach(([full, char]) => {
+        decompressed = decompressed.replaceAll(char, full);
+    });
+    return decompressed;
+}
+
 function generateCleanExportJSON() {
     const nodeKeys = Object.keys(nodes);
     const idMap = {};
@@ -574,7 +593,6 @@ function generateCleanExportJSON() {
                 const defVal = String(pDef.default);
                 
                 if (currentVal !== undefined && String(currentVal) !== defVal) {
-                    // Cast numeric types back to numbers to keep JSON clean
                     pArray[pIdx] = (!isNaN(Number(currentVal)) && typeof currentVal !== 'boolean') 
                         ? Number(currentVal) 
                         : currentVal;
@@ -585,7 +603,6 @@ function generateCleanExportJSON() {
             });
 
             if (hasCustomParam) {
-                // Trim trailing nulls
                 while (pArray.length > 0 && pArray[pArray.length - 1] === null) {
                     pArray.pop();
                 }
@@ -635,15 +652,14 @@ function generateCleanExportJSON() {
 
 function importGraphFromCleanJSON(rawJsonString) {
     try {
-        const data = JSON.parse(rawJsonString);
+        const cleanJson = decompressScriptString(rawJsonString.trim());
+        const data = JSON.parse(cleanJson);
         if (!data || !data.nodes || !Array.isArray(data.nodes)) {
             throw new Error("Invalid format: Missing 'nodes' array.");
         }
 
-        // --- FIX: Kill open previews and overlays first ---
         closeAllPreviewsAndUIOverlays();
 
-        // Reset workspace DOM and state
         document.getElementById('nodes-container').innerHTML = '';
         nodes = {};
         wires = [];
@@ -759,7 +775,8 @@ const exportModal = document.getElementById('export-modal');
 const exportTextarea = document.getElementById('export-json-text');
 
 document.getElementById('export-script-btn').onclick = () => {
-    exportTextarea.value = generateCleanExportJSON();
+    const rawJson = generateCleanExportJSON();
+    exportTextarea.value = compressScriptString(rawJson);
     exportModal.classList.add('active');
 };
 
@@ -980,7 +997,7 @@ document.getElementById('nav-camera').onclick = function() {
     document.getElementById('nav-builder').classList.remove('active'); 
     viewCam.classList.add('active'); 
     document.getElementById('view-builder').classList.remove('active'); 
-    document.getElementById('btn-recenter').style.display = 'none'; // Hide in camera view
+    document.getElementById('btn-recenter').style.display = 'none';
     triggerControlsFade();
 };
 
@@ -989,11 +1006,9 @@ document.getElementById('nav-builder').onclick = function() {
     document.getElementById('nav-camera').classList.remove('active'); 
     document.getElementById('view-builder').classList.add('active'); 
     viewCam.classList.remove('active'); 
-    document.getElementById('btn-recenter').style.display = 'inline-block'; // Show in builder view
+    document.getElementById('btn-recenter').style.display = 'inline-block';
     drawWires();
 };
-
-
 
 // --- Boot ---
 initBuilder();
