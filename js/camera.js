@@ -1,20 +1,25 @@
 async function startCamera() {
     try {
         if (stream) stream.getTracks().forEach(t => t.stop());
-                 
-        stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } }, 
-            audio: false 
+
+        // Detach any uploaded video from the mix bus
+        if (typeof audioEngine !== 'undefined') {
+            audioEngine.detachVideoSource();
+        }
+
+        stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } },
+            audio: false
         });
-                 
+
         singleVideo.src = "";
-        singleVideo.muted = true;
+        singleVideo.muted = true;   // camera path is muted, audio comes from mic node
         singleVideo.srcObject = stream;
-                 
-        document.getElementById('start-camera').disabled = true; 
-        document.getElementById('stop-camera').disabled = false; 
+
+        document.getElementById('start-camera').disabled = true;
+        document.getElementById('stop-camera').disabled = false;
         triggerControlsFade();
-    } catch (e) { 
+    } catch (e) {
         showToast("Camera error: " + e.message, true);
     }
 }
@@ -67,33 +72,29 @@ if (videoUpload) {
         const file = event.target.files[0];
         if (!file) return;
         if (stream) stopCamera();
-        
+
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
         singleVideo.src = fileURL;
-                 
+
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
-        
-        singleVideo.muted = false;
+
+        // IMPORTANT: keep element muted since audio now flows through Web Audio
+        singleVideo.muted = false;   // keep audible via mix bus
         singleVideo.play().catch(() => {
             singleVideo.muted = true;
             singleVideo.play();
         });
 
         if (typeof audioEngine !== 'undefined') {
-            audioEngine.init().then(() => {
-                if (!audioEngine.videoSource) {
-                    audioEngine.videoSource = audioEngine.ctx.createMediaElementSource(singleVideo);
-                    audioEngine.videoSource.connect(audioEngine.analyser);
-                } else {
-                    // Reconnect if reused
-                    try { audioEngine.videoSource.disconnect(); } catch(e){}
-                    audioEngine.videoSource.connect(audioEngine.analyser);
-                }
+            audioEngine.init().then(() => audioEngine.resume()).then(() => {
+                audioEngine.attachVideoSource(singleVideo);
+                // Optionally: also connect mic if user wants both simultaneously
+                // if (audioEngine.micStream) audioEngine.micSource.connect(audioEngine.mixBus);
             });
         }
-                 
-        document.getElementById('start-camera').disabled = false; 
+
+        document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
     });
 }
