@@ -1,11 +1,7 @@
 async function startCamera() {
     try {
         if (stream) stream.getTracks().forEach(t => t.stop());
-
-        // Detach any uploaded video from the mix bus
-        if (typeof audioEngine !== 'undefined') {
-            audioEngine.detachVideoSource();
-        }
+        if (typeof audioEngine !== 'undefined') audioEngine.detachVideoSource();
 
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } },
@@ -13,7 +9,7 @@ async function startCamera() {
         });
 
         singleVideo.src = "";
-        singleVideo.muted = true;   // camera path is muted, audio comes from mic node
+        singleVideo.muted = true;   // audio comes from mic_toggle / audio_in
         singleVideo.srcObject = stream;
 
         document.getElementById('start-camera').disabled = true;
@@ -25,18 +21,10 @@ async function startCamera() {
 }
 
 function stopCamera() {
-    if (stream) stream.getTracks().forEach(t => t.stop()); 
-    stream = null; 
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null;
     singleVideo.srcObject = null;
-    
-    // Also stop audio
-    if (typeof audioEngine !== 'undefined') {
-        audioEngine.stopMic();
-        // Optionally stop all tones
-        Object.keys(audioEngine.toneOscillators).forEach(id => audioEngine.stopTone(id));
-    }
-    
-    document.getElementById('start-camera').disabled = false; 
+    document.getElementById('start-camera').disabled = false;
     document.getElementById('stop-camera').disabled = true;
 }
 
@@ -79,8 +67,8 @@ if (videoUpload) {
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // IMPORTANT: keep element muted since audio now flows through Web Audio
-        singleVideo.muted = false;   // keep audible via mix bus
+        // Unmute element — audio will route via Web Audio to audio_out
+        singleVideo.muted = false;
         singleVideo.play().catch(() => {
             singleVideo.muted = true;
             singleVideo.play();
@@ -89,8 +77,6 @@ if (videoUpload) {
         if (typeof audioEngine !== 'undefined') {
             audioEngine.init().then(() => audioEngine.resume()).then(() => {
                 audioEngine.attachVideoSource(singleVideo);
-                // Optionally: also connect mic if user wants both simultaneously
-                // if (audioEngine.micStream) audioEngine.micSource.connect(audioEngine.mixBus);
             });
         }
 

@@ -5,34 +5,16 @@ class AudioEngine {
         this.micStream = null;
         this.micSource = null;
         this.videoSource = null;
-        this.masterGain = null;
-        this.analyser = null;
-        this.mixBus = null;      // <-- NEW: single mixing point for all sources
-        this.nodes = {};
+        this.nodes = {};            // per-node audio sub-graphs
         this.initialized = false;
-        this.toneOscillators = {};
-        this.currentSourceType = 'none';  // 'mic' | 'video' | 'none'
+        this.toneOscillators = {};  // per play_tone node
+        this.toneGains = {};        // per play_tone gain, so we can mute if unconnected
+        this.outputs = {};          // per audio_out node -> destination connection
     }
 
     async init() {
         if (this.initialized) return;
         this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-
-        // Master output
-        this.masterGain = this.ctx.createGain();
-        this.masterGain.gain.value = 1.0;
-        this.masterGain.connect(this.ctx.destination);
-
-        // Global analyser (for legacy paths / convenience)
-        this.analyser = this.ctx.createAnalyser();
-        this.analyser.fftSize = 2048;
-
-        // NEW: Mix bus — everything source-related routes through here
-        this.mixBus = this.ctx.createGain();
-        this.mixBus.gain.value = 1.0;
-        this.mixBus.connect(this.masterGain);
-        this.mixBus.connect(this.analyser);
-
         this.initialized = true;
     }
 
@@ -42,19 +24,16 @@ class AudioEngine {
         }
     }
 
-    // ---- MIC ----
+    // ---------- MIC (hardware) ----------
     async startMic() {
         await this.init();
         await this.resume();
         if (this.micStream) return;
-
         try {
             this.micStream = await navigator.mediaDevices.getUserMedia({
                 audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
             });
             this.micSource = this.ctx.createMediaStreamSource(this.micStream);
-            // Route into mix bus, NOT directly to analyser/master
-            this.micSource.connect(this.mixBus);
         } catch (e) {
             console.warn("Mic access denied:", e);
             throw e;
@@ -74,49 +53,46 @@ class AudioEngine {
         else this.stopMic();
     }
 
-    // ---- VIDEO (uploaded file) ----
-    // Call this once per <video> element lifetime. Reconnecting is fine.
+    // ---------- VIDEO (uploaded file) ----------
+    // Must be called once per <video> element lifetime
     attachVideoSource(videoEl) {
         if (!this.ctx) return;
         if (!this.videoSource) {
-            // NOTE: createMediaElementSource can only be called ONCE per element
             this.videoSource = this.ctx.createMediaElementSource(videoEl);
-            this.videoSource.connect(this.mixBus);
-        } else {
-            // Reconnect in case it was disconnected
-            try { this.videoSource.disconnect(); } catch(e) {}
-            this.videoSource.connect(this.mixBus);
         }
+        // Do NOT connect to anything yet — nodes will pull from it
     }
 
     detachVideoSource() {
+        // We keep the source node alive (can't recreate), just disconnect
         if (this.videoSource) {
             try { this.videoSource.disconnect(); } catch(e) {}
         }
     }
 
-    // ---- MASTER ----
-    setMasterVolume(pct) {
-        if (!this.masterGain) return;
-        this.masterGain.gain.value = Math.max(0, pct / 100);
+    // Returns the currently active hardware source node (mic OR video), or null
+    getActiveSourceNode() {
+        if (this.micSource) return this.micSource;
+        if (this.videoSource) return this.videoSource;
+        return null;
     }
 
-    // ---- FILTERS/GAIN/ANALYSER (unchanged) ----
+    // ---------- PER-NODE SUB-GRAPH NODES ----------
+    getGain(nodeId, key = 'gain') {
+        const k = `${nodeId}_${key}`;
+        if (!this.nodes[k]) {
+            const g = this.ctx.createGain();
+            this.nodes[k] = g;
+        }
+        return this.nodes[k];
+    }
+
     getFilter(nodeId, type) {
         const key = `${nodeId}_${type}`;
         if (!this.nodes[key]) {
             const filter = this.ctx.createBiquadFilter();
             filter.type = type;
             this.nodes[key] = filter;
-        }
-        return this.nodes[key];
-    }
-
-    getGain(nodeId) {
-        const key = `${nodeId}_gain`;
-        if (!this.nodes[key]) {
-            const g = this.ctx.createGain();
-            this.nodes[key] = g;
         }
         return this.nodes[key];
     }
@@ -131,7 +107,34 @@ class AudioEngine {
         return this.nodes[key];
     }
 
-    // ---- TONE ----
+    // audio_out: a passthrough gain that only connects to destination
+    // when the node is present in the graph
+    getOutput(nodeId) {
+        const key = `${nodeId}_out`;
+        if (!this.nodes[key]) {
+            const g = this.ctx.createGain();
+            g.gain.value = 1.0;
+            this.nodes[key] = g;
+            // Connect to speakers — this is the ONLY place we hit destination
+            g.connect(this.ctx.destination);
+        }
+        return this.nodes[key];
+    }
+
+    removeNode(nodeId) {
+        // Called on node delete
+        this.stopTone(nodeId);
+        const prefixes = [`${nodeId}_`];
+        Object.keys(this.nodes).forEach(k => {
+            if (prefixes.some(p => k.startsWith(p))) {
+                try { this.nodes[k].disconnect(); } catch(e) {}
+                delete this.nodes[k];
+            }
+        });
+    }
+
+    // ---------- TONE (source) ----------
+    // Creates an oscillator that is ALWAYS running but muted until connected
     createTone(nodeId, freq) {
         if (!this.ctx) return null;
         if (this.toneOscillators[nodeId]) {
@@ -142,11 +145,11 @@ class AudioEngine {
         const gain = this.ctx.createGain();
         osc.type = 'sine';
         osc.frequency.value = freq;
-        gain.gain.value = 0.2;
+        gain.gain.value = 1.0;  // will be routed through user's volume node if needed
         osc.connect(gain);
-        gain.connect(this.mixBus);  // <-- route to mix bus, not master directly
         osc.start();
         this.toneOscillators[nodeId] = osc;
+        this.toneGains[nodeId] = gain;
         return osc;
     }
 
@@ -154,10 +157,11 @@ class AudioEngine {
         if (this.toneOscillators[nodeId]) {
             try { this.toneOscillators[nodeId].stop(); } catch(e) {}
             delete this.toneOscillators[nodeId];
+            delete this.toneGains[nodeId];
         }
     }
 
-    // ---- ANALYSIS ----
+    // ---------- ANALYSIS ----------
     getDB(nodeId) {
         const analyser = this.nodes[`${nodeId}_analyser`];
         if (!analyser) return -100;

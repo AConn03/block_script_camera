@@ -745,41 +745,46 @@ function applyNodeEffect(node, inputs) {
         return;
     }
     // --- Audio Node Processing ---
-    const audioTypes = ['mic_toggle', 'volume', 'low_pass', 'high_pass', 'band_pass', 
+    const audioTypes = ['mic_toggle', 'volume', 'low_pass', 'high_pass', 'band_pass',
                         'audio_in', 'audio_out', 'get_db', 'get_hz', 'play_tone'];
 
     if (audioTypes.includes(type)) {
-        // Ensure audio engine is initialized
         if (!audioEngine.initialized) {
             audioEngine.init().then(() => audioEngine.resume());
         }
 
+        // ============ SOURCES ============
+
         if (type === 'audio_in') {
-            if (audioEngine.micStream) {
-                node.outputData['audio'] = {
-                    type: 'source',
-                    nodeId: node.id,
-                    engine: audioEngine,
-                    sourceNode: audioEngine.mixBus    // tap the mix bus
-                };
-            } else if (audioEngine.videoSource) {
-                node.outputData['audio'] = {
-                    type: 'source',
-                    nodeId: node.id,
-                    engine: audioEngine,
-                    sourceNode: audioEngine.mixBus
-                };
-            } else {
-                audioEngine.startMic().catch(() => {});
-                node.outputData['audio'] = null;
-            }
+            // Auto-detect hardware source. Mic takes priority if mic_toggle turned it on.
+            const srcNode = audioEngine.getActiveSourceNode();
+            node.outputData['audio'] = {
+                type: 'source',
+                nodeId: node.id,
+                engine: audioEngine,
+                sourceNode: srcNode   // may be null if no hardware source active
+            };
             return;
         }
 
+        if (type === 'play_tone') {
+            const freq = getP('freq', 440);
+            audioEngine.createTone(node.id, freq);
+            node.outputData['audio'] = {
+                type: 'source',
+                nodeId: node.id,
+                engine: audioEngine,
+                sourceNode: audioEngine.toneGains[node.id]  // the gain stage of the oscillator
+            };
+            return;
+        }
+
+        // ============ HARDWARE CONTROL ============
+
         if (type === 'mic_toggle') {
-            if (inputs['exec'] !== undefined && inputs['exec'] !== null) {
-                const state = inputs['val'] !== undefined && inputs['val'] !== null 
-                    ? (Number(inputs['val']) > 0.5) 
+            if (inputs['exec'] !== undefined && inputs['exec'] !== null && inputs['exec']) {
+                const state = inputs['val'] !== undefined && inputs['val'] !== null
+                    ? (Number(inputs['val']) > 0.5)
                     : (Number(getP('state', 1)) > 0.5);
                 audioEngine.setMicState(state);
             }
@@ -787,87 +792,80 @@ function applyNodeEffect(node, inputs) {
             return;
         }
 
+        // ============ PROCESSING (pass signal through) ============
+
         if (type === 'volume') {
-            const level = getP('level', 100);
-            // If we have an incoming audio stream, apply gain to it
             const incoming = inputs['val'];
-            if (incoming && incoming.type === 'source') {
-                // route through a gain node
-                const g = audioEngine.getGain(node.id);
-                g.gain.value = level / 100;
-                node.outputData['out'] = { type: 'source', nodeId: node.id, engine: audioEngine, gain: g };
-            } else {
-                // treat as number in/out
-                node.outputData['out'] = level;
+            if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                node.outputData['out'] = null;
+                return;
             }
+            const g = audioEngine.getGain(node.id, 'vol');
+            g.gain.value = getP('level', 100) / 100;
+            try { incoming.sourceNode.connect(g); } catch(e) {}
+            node.outputData['out'] = { type: 'source', nodeId: node.id, engine: audioEngine, sourceNode: g };
             return;
         }
 
         if (type === 'low_pass' || type === 'high_pass' || type === 'band_pass') {
             const incoming = inputs['audio'];
-            if (!incoming || incoming.type !== 'source') {
+            if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
                 node.outputData['audio'] = null;
                 return;
             }
-            const filterType = type === 'low_pass' ? 'lowpass' : type === 'high_pass' ? 'highpass' : 'bandpass';
+            const filterType = type === 'low_pass' ? 'lowpass'
+                            : type === 'high_pass' ? 'highpass'
+                            : 'bandpass';
             const filter = audioEngine.getFilter(node.id, filterType);
-
-            const cutoff = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
-            filter.frequency.value = cutoff;
+            filter.frequency.value = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
             if (type === 'band_pass') filter.Q.value = getP('q', 1);
 
-            try {
-                const src = incoming.filter || incoming.gain || incoming.sourceNode || incoming.engine.mixBus;
-                if (src) src.connect(filter);
-            } catch(e) {}
-
-            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, filter: filter };
+            try { incoming.sourceNode.connect(filter); } catch(e) {}
+            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, sourceNode: filter };
             return;
         }
 
-        if (type === 'audio_out') {
-            const incoming = inputs['audio'];
-            if (!incoming || incoming.type !== 'source') return;
-            try {
-                const src = incoming.filter || incoming.gain || incoming.sourceNode || incoming.engine.mixBus;
-                src.connect(audioEngine.masterGain);
-            } catch(e) {}
-            return;
-        }
+        // ============ ANALYSIS (pass through + read) ============
 
         if (type === 'get_db') {
             const incoming = inputs['audio'];
-            if (!incoming || incoming.type !== 'source') {
+            if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
                 node.outputData['db'] = -100;
                 return;
             }
             const analyser = audioEngine.getAnalyser(node.id);
-            const src = incoming.filter || incoming.gain || incoming.sourceNode || incoming.engine.mixBus;
-            try { src.connect(analyser); } catch(e) {}
+            try { incoming.sourceNode.connect(analyser); } catch(e) {}
             node.outputData['db'] = audioEngine.getDB(node.id);
             return;
         }
 
         if (type === 'get_hz') {
             const incoming = inputs['audio'];
-            const rank = inputs['index'] !== undefined && inputs['index'] !== null
-                ? Number(inputs['index'])
-                : getP('index', 1);
-            if (!incoming || incoming.type !== 'source') {
+            // Rank param is now the ONLY input (no separate 'index' port)
+            const rank = getP('rank', 1);
+            if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
                 node.outputData['hz'] = 0;
                 return;
             }
             const analyser = audioEngine.getAnalyser(node.id);
-            const src = incoming.filter || incoming.gain || incoming.sourceNode || incoming.engine.mixBus;
-            try { src.connect(analyser); } catch(e) {}
+            try { incoming.sourceNode.connect(analyser); } catch(e) {}
             node.outputData['hz'] = audioEngine.getHz(node.id, rank);
             return;
         }
 
-        if (type === 'play_tone') {
-            const freq = getP('freq', 440);
-            audioEngine.createTone(node.id, freq);
-            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, osc: audioEngine.toneOscillators[node.id] };
+        // ============ SINK — the ONLY thing that plays ============
+
+        if (type === 'audio_out') {
+            const incoming = inputs['audio'];
+            const output = audioEngine.getOutput(node.id);  // connected to destination
+
+            // If nothing connected, output is silent (input gain = 0)
+            if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                output.gain.value = 0.0;
+                return;
+            }
+            output.gain.value = 1.0;
+            try { incoming.sourceNode.connect(output); } catch(e) {}
             return;
         }
     }

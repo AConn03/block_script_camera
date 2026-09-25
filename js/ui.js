@@ -194,20 +194,14 @@ window.deleteNode = function(id) {
     if (!nodes[id]) return;
     if (nodes[id].previewCanvas) nodes[id].previewCanvas.remove();
     nodes[id].domElement.remove();
-    
-    // Cleanup audio nodes
+
     if (typeof audioEngine !== 'undefined') {
-        audioEngine.stopTone(id);
-        delete audioEngine.nodes[`${id}_gain`];
-        delete audioEngine.nodes[`${id}_analyser`];
-        delete audioEngine.nodes[`${id}_lowpass`];
-        delete audioEngine.nodes[`${id}_highpass`];
-        delete audioEngine.nodes[`${id}_bandpass`];
+        audioEngine.removeNode(id);   // removes gains, filters, analysers, tones
     }
-    
+
     delete nodes[id];
     const uiBtn = document.getElementById(`uibtn-${id}`); if (uiBtn) uiBtn.remove();
-    wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); 
+    wires = wires.filter(w => w.fromNode !== id && w.toNode !== id);
     rebuildGraphOrder(); drawWires();
 };
 
