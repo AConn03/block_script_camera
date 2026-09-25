@@ -660,13 +660,15 @@ function applyNodeEffect(node, inputs) {
         else if (isBound) val = window.userVars[node.bindings[id]] ?? defVal;
         else val = params[id] ?? defVal;
                 
-        // 1. Update text boxes (number/text types)
         const inputEl = document.getElementById(`input-${node.id}-${id}`);
         if (inputEl) {
+            const isLogSlider = inputEl.dataset.log === 'true';
+
             if (isConnected || isBound) {
+                // Driven by wire or var — user can't edit; reflect live value
                 inputEl.disabled = true;
                 let displayVal = val;
-                if (inputEl.dataset.log === 'true' && typeof val === 'number' && val > 0) {
+                if (isLogSlider && typeof val === 'number' && val > 0) {
                     const pDef = def.params.find(p => p.id === id);
                     if (pDef) {
                         const minLog = Math.log(pDef.min);
@@ -680,8 +682,10 @@ function applyNodeEffect(node, inputs) {
                 }
                 if (document.activeElement !== inputEl) inputEl.value = displayVal;
             } else {
+                // User-editable — DON'T overwrite the DOM value.
+                // updateParam / updateLogParam already handle this when the user drags.
                 inputEl.disabled = false;
-                if (document.activeElement !== inputEl) inputEl.value = params[id] ?? defVal;
+                // (No inputEl.value write here — let the user's drag persist)
             }
         }
 
