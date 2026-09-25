@@ -9,7 +9,7 @@ async function startCamera() {
         });
 
         singleVideo.src = "";
-        singleVideo.muted = true;   // audio comes from mic_toggle / audio_in
+        singleVideo.muted = true;
         singleVideo.srcObject = stream;
 
         document.getElementById('start-camera').disabled = true;

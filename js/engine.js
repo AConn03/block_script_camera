@@ -796,32 +796,54 @@ function applyNodeEffect(node, inputs) {
 
         if (type === 'volume') {
             const incoming = inputs['val'];
+            const g = audioEngine.getGain(node.id, 'vol');
+
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                audioEngine.setInput(node.id, null, g);
                 node.outputData['out'] = null;
                 return;
             }
-            const g = audioEngine.getGain(node.id, 'vol');
+
             g.gain.value = getP('level', 100) / 100;
-            try { incoming.sourceNode.connect(g); } catch(e) {}
+            audioEngine.setInput(node.id, incoming.sourceNode, g);
+
             node.outputData['out'] = { type: 'source', nodeId: node.id, engine: audioEngine, sourceNode: g };
             return;
         }
 
         if (type === 'low_pass' || type === 'high_pass' || type === 'band_pass') {
             const incoming = inputs['audio'];
+
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                // No input — tear down any existing connection
+                audioEngine.setInput(node.id, null, audioEngine.getFilter(node.id,
+                    type === 'low_pass' ? 'lowpass' : type === 'high_pass' ? 'highpass' : 'bandpass'));
                 node.outputData['audio'] = null;
                 return;
             }
+
             const filterType = type === 'low_pass' ? 'lowpass'
                             : type === 'high_pass' ? 'highpass'
                             : 'bandpass';
             const filter = audioEngine.getFilter(node.id, filterType);
-            filter.frequency.value = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
-            if (type === 'band_pass') filter.Q.value = getP('q', 1);
 
-            try { incoming.sourceNode.connect(filter); } catch(e) {}
-            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, sourceNode: filter };
+            // Update filter params
+            const cutoff = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
+            if (filter.frequency.value !== cutoff) filter.frequency.value = cutoff;
+            if (type === 'band_pass') {
+                const q = getP('q', 1);
+                if (filter.Q.value !== q) filter.Q.value = q;
+            }
+
+            // Wire input -> filter (idempotent, auto-disconnects stale edges)
+            audioEngine.setInput(node.id, incoming.sourceNode, filter);
+
+            node.outputData['audio'] = {
+                type: 'source',
+                nodeId: node.id,
+                engine: audioEngine,
+                sourceNode: filter
+            };
             return;
         }
 
@@ -829,43 +851,48 @@ function applyNodeEffect(node, inputs) {
 
         if (type === 'get_db') {
             const incoming = inputs['audio'];
+            const analyser = audioEngine.getAnalyser(node.id);
+
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                audioEngine.setInput(node.id, null, analyser);
                 node.outputData['db'] = -100;
                 return;
             }
-            const analyser = audioEngine.getAnalyser(node.id);
-            try { incoming.sourceNode.connect(analyser); } catch(e) {}
+
+            audioEngine.setInput(node.id, incoming.sourceNode, analyser);
             node.outputData['db'] = audioEngine.getDB(node.id);
             return;
         }
 
         if (type === 'get_hz') {
             const incoming = inputs['audio'];
-            // Rank param is now the ONLY input (no separate 'index' port)
             const rank = getP('rank', 1);
+            const analyser = audioEngine.getAnalyser(node.id);
+
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                audioEngine.setInput(node.id, null, analyser);
                 node.outputData['hz'] = 0;
                 return;
             }
-            const analyser = audioEngine.getAnalyser(node.id);
-            try { incoming.sourceNode.connect(analyser); } catch(e) {}
+
+            audioEngine.setInput(node.id, incoming.sourceNode, analyser);
             node.outputData['hz'] = audioEngine.getHz(node.id, rank);
             return;
         }
 
-        // ============ SINK — the ONLY thing that plays ============
-
         if (type === 'audio_out') {
             const incoming = inputs['audio'];
-            const output = audioEngine.getOutput(node.id);  // connected to destination
+            const output = audioEngine.getOutput(node.id);  // already connected to destination
 
-            // If nothing connected, output is silent (input gain = 0)
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                // Silence: mute the output gain (don't disconnect destination)
                 output.gain.value = 0.0;
+                audioEngine.setInput(node.id, null, output);
                 return;
             }
+
             output.gain.value = 1.0;
-            try { incoming.sourceNode.connect(output); } catch(e) {}
+            audioEngine.setInput(node.id, incoming.sourceNode, output);
             return;
         }
     }

@@ -122,15 +122,16 @@ class AudioEngine {
     }
 
     removeNode(nodeId) {
-        // Called on node delete
         this.stopTone(nodeId);
-        const prefixes = [`${nodeId}_`];
+        const incoming = this.lastIncoming[nodeId];
+        // Disconnect all local sub-nodes for this nodeId
         Object.keys(this.nodes).forEach(k => {
-            if (prefixes.some(p => k.startsWith(p))) {
+            if (k.startsWith(`${nodeId}_`)) {
                 try { this.nodes[k].disconnect(); } catch(e) {}
                 delete this.nodes[k];
             }
         });
+        delete this.lastIncoming[nodeId];
     }
 
     // ---------- TONE (source) ----------
@@ -190,6 +191,17 @@ class AudioEngine {
         if (bins.length === 0) return 0;
         const idx = Math.max(0, Math.min(rank - 1, bins.length - 1));
         return Math.round(bins[idx].freq);
+    }
+
+    safeConnect(fromNode, toNode) {
+        if (!fromNode || !toNode) return;
+        try { fromNode.disconnect(toNode); } catch(e) {}
+        try { fromNode.connect(toNode); } catch(e) {}
+    }
+
+    safeDisconnect(fromNode, toNode) {
+        if (!fromNode || !toNode) return;
+        try { fromNode.disconnect(toNode); } catch(e) {}
     }
 }
 
