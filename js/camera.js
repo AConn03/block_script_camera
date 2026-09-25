@@ -23,7 +23,14 @@ function stopCamera() {
     if (stream) stream.getTracks().forEach(t => t.stop()); 
     stream = null; 
     singleVideo.srcObject = null;
-         
+    
+    // Also stop audio
+    if (typeof audioEngine !== 'undefined') {
+        audioEngine.stopMic();
+        // Optionally stop all tones
+        Object.keys(audioEngine.toneOscillators).forEach(id => audioEngine.stopTone(id));
+    }
+    
     document.getElementById('start-camera').disabled = false; 
     document.getElementById('stop-camera').disabled = true;
 }
@@ -72,6 +79,19 @@ if (videoUpload) {
             singleVideo.muted = true;
             singleVideo.play();
         });
+
+        if (typeof audioEngine !== 'undefined') {
+            audioEngine.init().then(() => {
+                if (!audioEngine.videoSource) {
+                    audioEngine.videoSource = audioEngine.ctx.createMediaElementSource(singleVideo);
+                    audioEngine.videoSource.connect(audioEngine.analyser);
+                } else {
+                    // Reconnect if reused
+                    try { audioEngine.videoSource.disconnect(); } catch(e){}
+                    audioEngine.videoSource.connect(audioEngine.analyser);
+                }
+            });
+        }
                  
         document.getElementById('start-camera').disabled = false; 
         document.getElementById('stop-camera').disabled = true;
