@@ -1028,8 +1028,7 @@ document.addEventListener('click', function enableAudio() {
     if (typeof audioEngine !== 'undefined') {
         audioEngine.init().then(() => audioEngine.resume());
     }
-    document.removeEventListener('click', enableAudio);
-}, { once: true });
+});
 
 // --- Boot ---
 initBuilder();

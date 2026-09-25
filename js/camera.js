@@ -56,7 +56,7 @@ if (uploadBtn) {
 }
 
 if (videoUpload) {
-    videoUpload.addEventListener('change', (event) => {
+    videoUpload.addEventListener('change', async (event) => {
         const file = event.target.files[0];
         if (!file) return;
         if (stream) stopCamera();
@@ -67,18 +67,24 @@ if (videoUpload) {
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // Unmute element — audio will route via Web Audio to audio_out
-        singleVideo.muted = false;
-        singleVideo.play().catch(() => {
-            singleVideo.muted = true;
-            singleVideo.play();
-        });
-
+        // Ensure AudioContext is running BEFORE attaching source
         if (typeof audioEngine !== 'undefined') {
-            audioEngine.init().then(() => audioEngine.resume()).then(() => {
-                audioEngine.attachVideoSource(singleVideo);
-            });
+            await audioEngine.init();
+            await audioEngine.resume();
+            audioEngine.attachVideoSource(singleVideo);
         }
+
+        // Temporarily mute to satisfy autoplay policy, then UNMUTE.
+        // Once unmuted, MediaElementSource will pass real audio into the graph.
+        singleVideo.muted = true;
+        try {
+            await singleVideo.play();
+        } catch (e) {
+            console.warn("Video play failed:", e);
+        }
+        // CRITICAL: unmute so Web Audio gets real samples
+        singleVideo.muted = false;
+        singleVideo.volume = 1;
 
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;

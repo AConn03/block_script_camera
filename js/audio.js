@@ -5,11 +5,12 @@ class AudioEngine {
         this.micStream = null;
         this.micSource = null;
         this.videoSource = null;
-        this.nodes = {};            // per-node audio sub-graphs
+        this.nodes = {};
         this.initialized = false;
-        this.toneOscillators = {};  // per play_tone node
-        this.toneGains = {};        // per play_tone gain, so we can mute if unconnected
-        this.outputs = {};          // per audio_out node -> destination connection
+        this.toneOscillators = {};
+        this.toneGains = {};
+        this.outputs = {};
+        this.lastIncoming = {};   // nodeId -> sourceNode (for teardown)
     }
 
     async init() {
@@ -54,23 +55,20 @@ class AudioEngine {
     }
 
     // ---------- VIDEO (uploaded file) ----------
-    // Must be called once per <video> element lifetime
     attachVideoSource(videoEl) {
         if (!this.ctx) return;
         if (!this.videoSource) {
             this.videoSource = this.ctx.createMediaElementSource(videoEl);
         }
-        // Do NOT connect to anything yet — nodes will pull from it
+        // Do NOT connect to anything — nodes will pull from it
     }
 
     detachVideoSource() {
-        // We keep the source node alive (can't recreate), just disconnect
         if (this.videoSource) {
             try { this.videoSource.disconnect(); } catch(e) {}
         }
     }
 
-    // Returns the currently active hardware source node (mic OR video), or null
     getActiveSourceNode() {
         if (this.micSource) return this.micSource;
         if (this.videoSource) return this.videoSource;
@@ -107,8 +105,6 @@ class AudioEngine {
         return this.nodes[key];
     }
 
-    // audio_out: a passthrough gain that only connects to destination
-    // when the node is present in the graph
     getOutput(nodeId) {
         const key = `${nodeId}_out`;
         if (!this.nodes[key]) {
@@ -123,19 +119,22 @@ class AudioEngine {
 
     removeNode(nodeId) {
         this.stopTone(nodeId);
+
+        // Disconnect any incoming source from our local sub-node
         const incoming = this.lastIncoming[nodeId];
-        // Disconnect all local sub-nodes for this nodeId
+
+        // Disconnect and delete all local sub-nodes for this nodeId
         Object.keys(this.nodes).forEach(k => {
             if (k.startsWith(`${nodeId}_`)) {
                 try { this.nodes[k].disconnect(); } catch(e) {}
                 delete this.nodes[k];
             }
         });
+
         delete this.lastIncoming[nodeId];
     }
 
     // ---------- TONE (source) ----------
-    // Creates an oscillator that is ALWAYS running but muted until connected
     createTone(nodeId, freq) {
         if (!this.ctx) return null;
         if (this.toneOscillators[nodeId]) {
@@ -146,7 +145,7 @@ class AudioEngine {
         const gain = this.ctx.createGain();
         osc.type = 'sine';
         osc.frequency.value = freq;
-        gain.gain.value = 1.0;  // will be routed through user's volume node if needed
+        gain.gain.value = 1.0;
         osc.connect(gain);
         osc.start();
         this.toneOscillators[nodeId] = osc;
@@ -191,6 +190,23 @@ class AudioEngine {
         if (bins.length === 0) return 0;
         const idx = Math.max(0, Math.min(rank - 1, bins.length - 1));
         return Math.round(bins[idx].freq);
+    }
+
+    // ---------- CONNECTION MANAGEMENT ----------
+    // Idempotent connect: tears down stale edges before re-connecting
+    setInput(nodeId, incomingSourceNode, localNode) {
+        const prev = this.lastIncoming[nodeId];
+
+        if (prev && prev !== incomingSourceNode) {
+            try { prev.disconnect(localNode); } catch(e) {}
+        }
+
+        if (incomingSourceNode && localNode) {
+            try { incomingSourceNode.disconnect(localNode); } catch(e) {}
+            try { incomingSourceNode.connect(localNode); } catch(e) {}
+        }
+
+        this.lastIncoming[nodeId] = incomingSourceNode;
     }
 
     safeConnect(fromNode, toNode) {
