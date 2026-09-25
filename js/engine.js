@@ -744,6 +744,137 @@ function applyNodeEffect(node, inputs) {
         }
         return;
     }
+    // --- Audio Node Processing ---
+    const audioTypes = ['mic_toggle', 'volume', 'low_pass', 'high_pass', 'band_pass', 
+                        'audio_in', 'audio_out', 'get_db', 'get_hz', 'play_tone'];
+
+    if (audioTypes.includes(type)) {
+        // Ensure audio engine is initialized
+        if (!audioEngine.initialized) {
+            audioEngine.init().then(() => audioEngine.resume());
+        }
+
+        if (type === 'audio_in') {
+            // Ensure mic is running and route through a per-node analyser
+            if (!audioEngine.micStream) {
+                audioEngine.startMic().catch(() => {});
+            }
+            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine };
+            return;
+        }
+
+        if (type === 'mic_toggle') {
+            if (inputs['exec'] !== undefined && inputs['exec'] !== null) {
+                const state = inputs['val'] !== undefined && inputs['val'] !== null 
+                    ? (Number(inputs['val']) > 0.5) 
+                    : (Number(getP('state', 1)) > 0.5);
+                audioEngine.setMicState(state);
+            }
+            node.outputData['exec'] = inputs['exec'];
+            return;
+        }
+
+        if (type === 'volume') {
+            const level = getP('level', 100);
+            // If we have an incoming audio stream, apply gain to it
+            const incoming = inputs['val'];
+            if (incoming && incoming.type === 'source') {
+                // route through a gain node
+                const g = audioEngine.getGain(node.id);
+                g.gain.value = level / 100;
+                node.outputData['out'] = { type: 'source', nodeId: node.id, engine: audioEngine, gain: g };
+            } else {
+                // treat as number in/out
+                node.outputData['out'] = level;
+            }
+            return;
+        }
+
+        if (type === 'low_pass' || type === 'high_pass' || type === 'band_pass') {
+            const incoming = inputs['audio'];
+            if (!incoming || incoming.type !== 'source') {
+                node.outputData['audio'] = null;
+                return;
+            }
+            const filterType = type === 'low_pass' ? 'lowpass' 
+                            : type === 'high_pass' ? 'highpass' 
+                            : 'bandpass';
+            const filter = audioEngine.getFilter(node.id, filterType);
+            
+            const cutoff = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
+            filter.frequency.value = cutoff;
+            if (type === 'band_pass') {
+                filter.Q.value = getP('q', 1);
+            }
+
+            // Wire input source -> filter -> output
+            try {
+                const srcNode = incoming.engine.nodes[`${incoming.nodeId}_out`] || 
+                                incoming.engine.nodes[`${incoming.nodeId}_analyser`] ||
+                                incoming.engine.micSource;
+                if (srcNode) srcNode.connect(filter);
+            } catch(e) { /* already connected */ }
+
+            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, filter: filter };
+            return;
+        }
+
+        if (type === 'audio_out') {
+            const incoming = inputs['audio'];
+            if (!incoming || incoming.type !== 'source') return;
+            // Wire to master output
+            try {
+                const srcNode = incoming.filter || 
+                                incoming.gain || 
+                                incoming.engine.nodes[`${incoming.nodeId}_analyser`] ||
+                                incoming.engine.micSource;
+                if (srcNode) srcNode.connect(audioEngine.masterGain);
+            } catch(e) { /* already connected */ }
+            return;
+        }
+
+        if (type === 'get_db') {
+            const incoming = inputs['audio'];
+            if (!incoming || incoming.type !== 'source') {
+                node.outputData['db'] = -100;
+                return;
+            }
+            // Ensure analyser exists on this node and is fed
+            const analyser = audioEngine.getAnalyser(node.id);
+            try {
+                const srcNode = incoming.filter || incoming.gain || incoming.engine.micSource;
+                if (srcNode) srcNode.connect(analyser);
+            } catch(e) {}
+            node.outputData['db'] = audioEngine.getDB(node.id);
+            return;
+        }
+
+        if (type === 'get_hz') {
+            const incoming = inputs['audio'];
+            const rank = inputs['index'] !== undefined && inputs['index'] !== null 
+                ? Number(inputs['index']) 
+                : getP('index', 1);
+            if (!incoming || incoming.type !== 'source') {
+                node.outputData['hz'] = 0;
+                return;
+            }
+            const analyser = audioEngine.getAnalyser(node.id);
+            try {
+                const srcNode = incoming.filter || incoming.gain || incoming.engine.micSource;
+                if (srcNode) srcNode.connect(analyser);
+            } catch(e) {}
+            node.outputData['hz'] = audioEngine.getHz(node.id, rank);
+            return;
+        }
+
+        if (type === 'play_tone') {
+            const freq = getP('freq', 440);
+            audioEngine.createTone(node.id, freq);
+            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, osc: audioEngine.toneOscillators[node.id] };
+            return;
+        }
+    }
+
     if (type === 'screen_width') { node.outputData['val'] = videoWidth || 0; return;}
     if (type === 'screen_height') { node.outputData['val'] = videoHeight || 0; return;}
     if (type === 'time_sec') { node.outputData['val'] = Date.now() / 1000; return; }

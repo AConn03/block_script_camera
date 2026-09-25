@@ -14,6 +14,7 @@ function centerWorkspace() {
 }
 
 function setupDefaultGraph() {
+    stopAllAudio()
     closeAllPreviewsAndUIOverlays();
     document.getElementById('nodes-container').innerHTML = '';
     document.getElementById('ui-layer').innerHTML = '';
@@ -193,9 +194,21 @@ window.deleteNode = function(id) {
     if (!nodes[id]) return;
     if (nodes[id].previewCanvas) nodes[id].previewCanvas.remove();
     nodes[id].domElement.remove();
+    
+    // Cleanup audio nodes
+    if (typeof audioEngine !== 'undefined') {
+        audioEngine.stopTone(id);
+        delete audioEngine.nodes[`${id}_gain`];
+        delete audioEngine.nodes[`${id}_analyser`];
+        delete audioEngine.nodes[`${id}_lowpass`];
+        delete audioEngine.nodes[`${id}_highpass`];
+        delete audioEngine.nodes[`${id}_bandpass`];
+    }
+    
     delete nodes[id];
     const uiBtn = document.getElementById(`uibtn-${id}`); if (uiBtn) uiBtn.remove();
-    wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); rebuildGraphOrder(); drawWires();
+    wires = wires.filter(w => w.fromNode !== id && w.toNode !== id); 
+    rebuildGraphOrder(); drawWires();
 };
 
 function getPreviewLayer() {
@@ -272,6 +285,13 @@ function closeAllPreviewsAndUIOverlays() {
     const uiLayer = document.getElementById('ui-layer');
     if (uiLayer) {
         uiLayer.innerHTML = '';
+    }
+}
+
+function stopAllAudio() {
+    if (typeof audioEngine !== 'undefined') {
+        Object.keys(audioEngine.toneOscillators).forEach(id => audioEngine.stopTone(id));
+        audioEngine.stopMic();
     }
 }
 
@@ -463,7 +483,7 @@ document.getElementById('confirm-var').onclick = () => {
 };
 
 function initBuilder() {
-    const palTabs = document.getElementById('palette-tabs'), categories = ['I/O', 'Image Processing', 'Triggers', 'Variables', 'Math', 'Enviorment']; let activeCategory = 'Image Processing';
+    const palTabs = document.getElementById('palette-tabs'), categories = ['I/O', 'Image Processing', 'Triggers', 'Variables', 'Math', 'Enviorment', 'Audio']; let activeCategory = 'Image Processing';
     categories.forEach(cat => {
         const btn = document.createElement('div'); btn.className = `palette-tab ${cat === activeCategory ? 'active' : ''}`; btn.textContent = cat;
         btn.onclick = () => { document.querySelectorAll('.palette-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); activeCategory = cat; renderPalette(cat); };
@@ -1009,6 +1029,13 @@ document.getElementById('nav-builder').onclick = function() {
     document.getElementById('btn-recenter').style.display = 'inline-block';
     drawWires();
 };
+
+document.addEventListener('click', function enableAudio() {
+    if (typeof audioEngine !== 'undefined') {
+        audioEngine.init().then(() => audioEngine.resume());
+    }
+    document.removeEventListener('click', enableAudio);
+}, { once: true });
 
 // --- Boot ---
 initBuilder();
