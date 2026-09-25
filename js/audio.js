@@ -85,14 +85,44 @@ class AudioEngine {
         return this.nodes[k];
     }
 
-    getFilter(nodeId, type) {
-        const key = `${nodeId}_${type}`;
-        if (!this.nodes[key]) {
-            const filter = this.ctx.createBiquadFilter();
-            filter.type = type;
-            this.nodes[key] = filter;
+    // Returns the FIRST node of a chain of N biquad filters.
+    getFilterChain(nodeId, type, poles) {
+        poles = Math.max(1, Math.min(4, parseInt(poles) || 1));
+        const key = `${nodeId}_filterchain_${type}`;
+        const metaKey = `${key}_poles`;
+
+        if (this.nodes[key] && this.nodes[metaKey] === poles) {
+            return this.nodes[key];    // reuse existing chain
         }
-        return this.nodes[key];
+
+        // Tear down any existing chain
+        if (this.nodes[key]) {
+            try { this.nodes[key].disconnect(); } catch(e) {}
+        }
+        // Remove all old biquads for this node
+        Object.keys(this.nodes).forEach(k => {
+            if (k.startsWith(`${nodeId}_fchain_${type}_`)) {
+                try { this.nodes[k].disconnect(); } catch(e) {}
+                delete this.nodes[k];
+            }
+        });
+
+        // Build a fresh chain
+        const filters = [];
+        for (let i = 0; i < poles; i++) {
+            const f = this.ctx.createBiquadFilter();
+            f.type = type;  // 'lowpass' | 'highpass' | 'bandpass'
+            this.nodes[`${nodeId}_fchain_${type}_${i}`] = f;
+            filters.push(f);
+        }
+        // Wire them in series
+        for (let i = 0; i < filters.length - 1; i++) {
+            filters[i].connect(filters[i + 1]);
+        }
+
+        this.nodes[key] = filters[0];       // entry point
+        this.nodes[metaKey] = poles;
+        return filters[0];
     }
 
     getAnalyser(nodeId) {

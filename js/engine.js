@@ -822,35 +822,44 @@ function applyNodeEffect(node, inputs) {
         if (type === 'low_pass' || type === 'high_pass' || type === 'band_pass') {
             const incoming = inputs['audio'];
 
+            const filterType = type === 'low_pass'  ? 'lowpass'
+                            : type === 'high_pass' ? 'highpass'
+                            : 'bandpass';
+
+            const poles = parseInt(getP('poles', 1)) || 1;
+
+            // If no input, tear down and return
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
-                // No input — tear down any existing connection
-                audioEngine.setInput(node.id, null, audioEngine.getFilter(node.id,
-                    type === 'low_pass' ? 'lowpass' : type === 'high_pass' ? 'highpass' : 'bandpass'));
+                // Clear input wiring to this node's chain head
+                const head = audioEngine.getFilterChain(node.id, filterType, poles);
+                audioEngine.setInput(node.id, null, head);
                 node.outputData['audio'] = null;
                 return;
             }
 
-            const filterType = type === 'low_pass' ? 'lowpass'
-                            : type === 'high_pass' ? 'highpass'
-                            : 'bandpass';
-            const filter = audioEngine.getFilter(node.id, filterType);
+            // Build the chain (rebuilds if poles changed)
+            const chainHead = audioEngine.getFilterChain(node.id, filterType, poles);
+            const chainTail = audioEngine.nodes[`${node.id}_fchain_${filterType}_${poles - 1}`];
 
-            // Update filter params
+            // Update cutoff and Q on ALL filters in the chain
             const cutoff = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
-            if (filter.frequency.value !== cutoff) filter.frequency.value = cutoff;
-            if (type === 'band_pass') {
-                const q = getP('q', 1);
-                if (filter.Q.value !== q) filter.Q.value = q;
+            const q = (type === 'band_pass') ? getP('q', 1) : 0.7071;  // Butterworth Q for flat response
+
+            for (let i = 0; i < poles; i++) {
+                const f = audioEngine.nodes[`${node.id}_fchain_${filterType}_${i}`];
+                if (!f) continue;
+                if (f.frequency.value !== cutoff) f.frequency.value = cutoff;
+                if (f.Q.value !== q) f.Q.value = q;
             }
 
-            // Wire input -> filter (idempotent, auto-disconnects stale edges)
-            audioEngine.setInput(node.id, incoming.sourceNode, filter);
+            // Wire input -> chainHead
+            audioEngine.setInput(node.id, incoming.sourceNode, chainHead);
 
             node.outputData['audio'] = {
                 type: 'source',
                 nodeId: node.id,
                 engine: audioEngine,
-                sourceNode: filter
+                sourceNode: chainTail    // downstream pulls from the LAST filter
             };
             return;
         }
