@@ -86,9 +86,9 @@ const NODE_DEFS = {
     // 90 - 119: Audio
     mic_toggle: { typeId: 90, label: 'Mic Toggle', category: 'Audio', inPorts: ['exec', 'val'], outPorts: ['exec'], params: [{ id: 'state', label: 'State (0/1)', type: 'number', default: 1 }] },
     volume: { typeId: 91, label: 'Volume', category: 'Audio', inPorts: ['val'], outPorts: ['out'], params: [{ id: 'level', label: 'Level (%)', type: 'range', min: 0, max: 200, default: 100 }] },
-    low_pass: { typeId: 92, label: 'Low Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [{ id: 'cutoff', label: 'Cutoff (Hz)', type: 'range', min: 20, max: 20000, default: 8000 }] },
-    high_pass: { typeId: 93, label: 'High Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [{ id: 'cutoff', label: 'Cutoff (Hz)', type: 'range', min: 20, max: 20000, default: 200 }] },
-    band_pass: { typeId: 94, label: 'Band Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'freq', label: 'Freq (Hz)', type: 'range', min: 20, max: 20000, default: 1000 }, { id: 'q', label: 'Q', type: 'range', min: 1, max: 100, default: 1 } ] },
+    low_pass: { typeId: 92, label: 'Low Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [{ id: 'cutoff', label: 'Cutoff (Hz)', type: 'log_range', min: 20, max: 20000, default: 8000 }] },
+    high_pass: { typeId: 93, label: 'High Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [{ id: 'cutoff', label: 'Cutoff (Hz)', type: 'log_range', min: 20, max: 20000, default: 200 }] },
+    band_pass: { typeId: 94, label: 'Band Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'freq', label: 'Freq (Hz)', type: 'log_range', min: 20, max: 20000, default: 1000 }, { id: 'q', label: 'Q', type: 'range', min: 1, max: 100, default: 1 } ] },
     audio_in: { typeId: 95, label: 'Audio In (Mic)', category: 'Audio', inPorts: [], outPorts: ['audio'] },
     audio_out: { typeId: 96, label: 'Audio Out (Speaker)', category: 'Audio', inPorts: ['audio'], outPorts: [] },
     get_db: { typeId: 97, label: 'Get dB', category: 'Audio', inPorts: ['audio'], outPorts: ['db'] },

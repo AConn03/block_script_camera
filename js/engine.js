@@ -665,15 +665,23 @@ function applyNodeEffect(node, inputs) {
         if (inputEl) {
             if (isConnected || isBound) {
                 inputEl.disabled = true;
-                const fmt = typeof val === 'number' ? (Number.isInteger(val) ? val : Math.round(val * 100) / 100) : val;
-                if (document.activeElement !== inputEl) {
-                    inputEl.value = fmt;
+                let displayVal = val;
+                if (inputEl.dataset.log === 'true' && typeof val === 'number' && val > 0) {
+                    const pDef = def.params.find(p => p.id === id);
+                    if (pDef) {
+                        const minLog = Math.log(pDef.min);
+                        const maxLog = Math.log(pDef.max);
+                        displayVal = Math.round(1000 * (Math.log(val) - minLog) / (maxLog - minLog));
+                    }
+                } else {
+                    displayVal = typeof val === 'number'
+                        ? (Number.isInteger(val) ? val : Math.round(val * 100) / 100)
+                        : val;
                 }
+                if (document.activeElement !== inputEl) inputEl.value = displayVal;
             } else {
                 inputEl.disabled = false;
-                if (document.activeElement !== inputEl) {
-                    inputEl.value = params[id] ?? defVal;
-                }
+                if (document.activeElement !== inputEl) inputEl.value = params[id] ?? defVal;
             }
         }
 

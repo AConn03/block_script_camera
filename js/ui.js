@@ -91,6 +91,7 @@ function renderParamUI(nodeId, paramId) {
     } else {
         const val = node.params[paramId]; let inputHtml = '';
         if (pDef.type === 'range') inputHtml = `<input type="range" class="param-input" id="input-${nodeId}-${paramId}" min="${pDef.min}" max="${pDef.max}" value="${val}" oninput="updateParam('${nodeId}','${paramId}',this.value)">`;
+        else if (pDef.type === 'log_range') { const minLog = Math.log(pDef.min); const maxLog = Math.log(pDef.max); const sliderPos = Math.round( 1000 * (Math.log(val) - minLog) / (maxLog - minLog) ); inputHtml = `<input type="range" class="param-input" id="input-${nodeId}-${paramId}" min="0" max="1000" value="${sliderPos}" data-log="true" data-min="${pDef.min}" data-max="${pDef.max}" oninput="updateLogParam('${nodeId}','${paramId}',this.value)">`; }
         else if (pDef.type === 'number' || pDef.type === 'text') inputHtml = `<input type="${pDef.type}" class="param-input" id="input-${nodeId}-${paramId}" value="${val}" style="width: 100%; padding: 6px; background: #000; border: 1px solid #444; border-radius: 4px; color: white;" ${pDef.type==='number'?'onchange':'oninput'}="updateParam('${nodeId}','${paramId}',this.value)">`;
         else if (pDef.type === 'select' || pDef.type === 'var_select') {
             let opts = pDef.type === 'var_select' ? window.userVarNames : pDef.options;
@@ -124,10 +125,10 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
 
     if (def.params) def.params.forEach(p => {
         const val = params[p.id] !== undefined ? params[p.id] : p.default; params[p.id] = val; 
-        const isDrop = p.type === 'number' || p.type === 'range';
+        const isDrop = p.type === 'number' || p.type === 'range' || p.type === 'log_range';
         
-        const labelValueHtml = p.type === 'range' 
-            ? `<span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span>` 
+        const labelValueHtml = (p.type === 'range' || p.type === 'log_range')
+            ? `<span id="lbl-${id}-${p.id}" style="color:#3b82f6; font-family:monospace; font-size:10px; max-width:80px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; display:inline-block; text-align:right;" title="${val}">${val}</span>`
             : '';
 
         bodyHtml += `<div class="param-group ${isDrop ? 'param-droppable' : ''}" data-node="${id}" data-param="${p.id}">
@@ -181,13 +182,26 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
     rebuildGraphOrder(); drawWires(); return id;
 }
 
-window.updateParam = function(nodeId, paramId, val) {
-    if (nodes[nodeId]) { 
-        nodes[nodeId].params[paramId] = val; 
-        const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`); 
-        if (lbl) lbl.textContent = val; 
-        if (nodes[nodeId].type === 'hsv_pass') updateSwatch(nodeId); 
-    }
+window.updateLogParam = function(nodeId, paramId, sliderPos) {
+    const node = nodes[nodeId];
+    if (!node) return;
+    const pDef = NODE_DEFS[node.type].params.find(p => p.id === paramId);
+    if (!pDef) return;
+
+    const minLog = Math.log(pDef.min);
+    const maxLog = Math.log(pDef.max);
+    const realValue = Math.exp(minLog + (sliderPos / 1000) * (maxLog - minLog));
+
+    // Round to integer Hz — no sense in float Hz
+    const rounded = Math.round(realValue);
+
+    node.params[paramId] = rounded;
+
+    // Update the blue label
+    const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`);
+    if (lbl) lbl.textContent = rounded;
+
+    if (node.type === 'hsv_pass') updateSwatch(nodeId); // (not relevant here, but safe)
 };
 
 window.deleteNode = function(id) {
