@@ -757,8 +757,7 @@ function applyNodeEffect(node, inputs) {
         return;
     }
     // --- Audio Node Processing ---
-    const audioTypes = ['mic_toggle', 'volume', 'low_pass', 'high_pass', 'band_pass',
-                        'audio_in', 'audio_out', 'get_db', 'get_hz', 'play_tone'];
+    const audioTypes = ['mic_toggle', 'volume', 'hz_filter', 'db_filter', 'audio_in', 'audio_out', 'get_db', 'get_hz', 'play_tone', 'audio_merge'];
 
     if (audioTypes.includes(type)) {
         if (!audioEngine.initialized) {
@@ -823,51 +822,151 @@ function applyNodeEffect(node, inputs) {
             return;
         }
 
-        if (type === 'low_pass' || type === 'high_pass' || type === 'band_pass') {
+        if (type === 'hz_filter') {
             const incoming = inputs['audio'];
+            const poles = parseInt(getP('poles', 4)) || 4;
+            const minHz = Math.min(getP('min', 20), getP('max', 20000));
+            const maxHz = Math.max(getP('min', 20), getP('max', 20000));
 
-            const filterType = type === 'low_pass'  ? 'lowpass'
-                            : type === 'high_pass' ? 'highpass'
-                            : 'bandpass';
+            const { hpHead, lpTail } = audioEngine.getHzFilterChain(node.id, minHz, maxHz, poles);
 
-            const poles = parseInt(getP('poles', 1)) || 1;
-
-            // If no input, tear down and return
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
-                // Clear input wiring to this node's chain head
-                const head = audioEngine.getFilterChain(node.id, filterType, poles);
-                audioEngine.setInput(node.id, null, head);
+                audioEngine.setInput(node.id, null, hpHead);
                 node.outputData['audio'] = null;
                 return;
             }
 
-            // Build the chain (rebuilds if poles changed)
-            const chainHead = audioEngine.getFilterChain(node.id, filterType, poles);
-            const chainTail = audioEngine.nodes[`${node.id}_fchain_${filterType}_${poles - 1}`];
+            audioEngine.setInput(node.id, incoming.sourceNode, hpHead);
+            node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, sourceNode: lpTail };
+            return;
+        }
 
-            // Update cutoff and Q on ALL filters in the chain
-            const cutoff = getP('cutoff', type === 'low_pass' ? 8000 : type === 'high_pass' ? 200 : 1000);
-            const q = (type === 'band_pass') ? getP('q', 1) : 0.7071;  // Butterworth Q for flat response
+        if (type === 'db_filter') {
+            const incoming = inputs['audio'];
+            const minDb = getP('min', -60);
+            const maxDb = getP('max', 0);
 
-            for (let i = 0; i < poles; i++) {
-                const f = audioEngine.nodes[`${node.id}_fchain_${filterType}_${i}`];
-                if (!f) continue;
-                if (f.frequency.value !== cutoff) f.frequency.value = cutoff;
-                if (f.Q.value !== q) f.Q.value = q;
+            // --- Build/retrieve the processing chain for this node ---
+            const chainKey = `${node.id}_dbchain`;
+            if (!audioEngine.nodes[chainKey]) {
+                // Splitter so we can analyse a copy without breaking the main signal
+                const splitter = audioEngine.ctx.createGain();
+                splitter.gain.value = 1.0;
+
+                // Analyser taps the splitter (measurement only, doesn't affect signal)
+                const analyser = audioEngine.ctx.createAnalyser();
+                analyser.fftSize = 2048;
+
+                // Gate: mutes when below minDb
+                const gate = audioEngine.ctx.createGain();
+                gate.gain.value = 1.0;
+
+                // Compressor: acts as ceiling when above maxDb
+                const comp = audioEngine.ctx.createDynamicsCompressor();
+                comp.knee.value = 0;
+                comp.ratio.value = 20;
+                comp.attack.value = 0.003;
+                comp.release.value = 0.1;
+
+                audioEngine.nodes[`${node.id}_dbsplit`] = splitter;
+                audioEngine.nodes[`${node.id}_dbanalyser`] = analyser;
+                audioEngine.nodes[`${node.id}_dbgate`] = gate;
+                audioEngine.nodes[`${node.id}_dbcomp`] = comp;
+                audioEngine.nodes[chainKey] = true;
+
+                // Internal wiring: splitter → analyser (tap, dead-end)
+                //                  splitter → gate → comp (main path)
+                splitter.connect(analyser);
+                splitter.connect(gate);
+                gate.connect(comp);
             }
 
-            // Wire input -> chainHead
-            audioEngine.setInput(node.id, incoming.sourceNode, chainHead);
+            const splitter = audioEngine.nodes[`${node.id}_dbsplit`];
+            const analyser = audioEngine.nodes[`${node.id}_dbanalyser`];
+            const gate     = audioEngine.nodes[`${node.id}_dbgate`];
+            const comp     = audioEngine.nodes[`${node.id}_dbcomp`];
+
+            // Update thresholds live
+            comp.threshold.value = maxDb;
+
+            // --- Handle no input ---
+            if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
+                try { incoming && incoming.sourceNode && incoming.sourceNode.disconnect(splitter); } catch(e) {}
+                // Smoothly mute
+                const now = audioEngine.ctx.currentTime;
+                gate.gain.cancelScheduledValues(now);
+                gate.gain.setTargetAtTime(0.0, now, 0.02);
+                node.outputData['audio'] = null;
+                return;
+            }
+
+            // --- Rewire incoming → splitter (idempotent) ---
+            try { incoming.sourceNode.disconnect(splitter); } catch(e) {}
+            try { incoming.sourceNode.connect(splitter); } catch(e) {}
+
+            // --- Measure the INCOMING level (before gate) ---
+            const data = new Float32Array(analyser.fftSize);
+            analyser.getFloatTimeDomainData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) sum += data[i] * data[i];
+            const rms = Math.sqrt(sum / data.length);
+            const db = 20 * Math.log10(rms || 1e-10);
+
+            // --- Gate logic: below minDb → mute, otherwise pass ---
+            const targetGain = (db >= minDb) ? 1.0 : 0.0;
+            const now = audioEngine.ctx.currentTime;
+            gate.gain.cancelScheduledValues(now);
+            gate.gain.setTargetAtTime(targetGain, now, 0.01); // 10ms smoothing
 
             node.outputData['audio'] = {
                 type: 'source',
                 nodeId: node.id,
                 engine: audioEngine,
-                sourceNode: chainTail    // downstream pulls from the LAST filter
+                sourceNode: comp
             };
             return;
         }
 
+        if (type === 'audio_merge') {
+            const a = inputs['a'];
+            const b = inputs['b'];
+            const mode = params.mode || 'mix';
+
+            const gainA = audioEngine.getMergeGainA(node.id);
+            const gainB = audioEngine.getMergeGainB(node.id);
+            const output = audioEngine.getMerge(node.id, mode);
+
+            gainA.gain.value = getP('levelA', 100) / 100;
+            gainB.gain.value = getP('levelB', 100) / 100;
+            output.gain.value = (mode === 'add') ? 0.7 : 1.0;
+
+            // A path
+            if (a && a.type === 'source' && a.sourceNode) {
+                try { a.sourceNode.disconnect(gainA); } catch(e) {}
+                try { a.sourceNode.connect(gainA); } catch(e) {}
+            } else {
+                try { gainA.disconnect(output); } catch(e) {}
+            }
+            try { gainA.disconnect(output); } catch(e) {}
+            try { gainA.connect(output); } catch(e) {}
+
+            // B path
+            if (b && b.type === 'source' && b.sourceNode) {
+                try { b.sourceNode.disconnect(gainB); } catch(e) {}
+                try { b.sourceNode.connect(gainB); } catch(e) {}
+            } else {
+                try { gainB.disconnect(output); } catch(e) {}
+            }
+            try { gainB.disconnect(output); } catch(e) {}
+            try { gainB.connect(output); } catch(e) {}
+
+            if (!(a || b)) {
+                node.outputData['audio'] = null;
+            } else {
+                node.outputData['audio'] = { type: 'source', nodeId: node.id, engine: audioEngine, sourceNode: output };
+            }
+            return;
+        }
         // ============ ANALYSIS (pass through + read) ============
 
         if (type === 'get_db') {
