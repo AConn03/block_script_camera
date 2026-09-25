@@ -86,13 +86,13 @@ const NODE_DEFS = {
     // 90 - 119: Audio
     mic_toggle: { typeId: 90, label: 'Mic Toggle', category: 'Audio', inPorts: ['exec', 'val'], outPorts: ['exec'], params: [{ id: 'state', label: 'State (0/1)', type: 'number', default: 1 }] },
     volume: { typeId: 91, label: 'Volume', category: 'Audio', inPorts: ['val'], outPorts: ['out'], params: [{ id: 'level', label: 'Level (%)', type: 'range', min: 0, max: 200, default: 100 }] },
-    low_pass: { typeId: 92, label: 'Low Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'cutoff', label: 'Cutoff (Hz)', type: 'log_range', min: 20, max: 20000, default: 8000 }, { id: 'poles', label: 'Poles', type: 'range', min: 1, max: 4, default: 4 } ] },
-    high_pass: { typeId: 93, label: 'High Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'cutoff', label: 'Cutoff (Hz)', type: 'log_range', min: 20, max: 20000, default: 200 }, { id: 'poles', label: 'Poles', type: 'range', min: 1, max: 4, default: 4 } ] },
+    low_pass: { typeId: 92, label: 'Low Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'cutoff', label: 'Cutoff (Hz)', type: 'log_range', min: 20, max: 20000, default: 8000 }, { id: 'poles', label: 'Poles', type: 'range', min: 1, max: 4, default: 1 } ] },
+    high_pass: { typeId: 93, label: 'High Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'cutoff', label: 'Cutoff (Hz)', type: 'log_range', min: 20, max: 20000, default: 200 }, { id: 'poles', label: 'Poles', type: 'range', min: 1, max: 4, default: 1 } ] },
     band_pass: { typeId: 94, label: 'Band Pass', category: 'Audio', inPorts: ['audio'], outPorts: ['audio'], params: [ { id: 'freq', label: 'Freq (Hz)', type: 'log_range', min: 20, max: 20000, default: 1000 }, { id: 'q', label: 'Q', type: 'range', min: 1,  max: 100, default: 1 }, { id: 'poles', label: 'Poles', type: 'range', min: 1,  max: 4, default: 1 } ] },
     audio_in: { typeId: 95, label: 'Audio In (Mic)', category: 'Audio', inPorts: [], outPorts: ['audio'] },
     audio_out: { typeId: 96, label: 'Audio Out (Speaker)', category: 'Audio', inPorts: ['audio'], outPorts: [] },
     get_db: { typeId: 97, label: 'Get dB', category: 'Audio', inPorts: ['audio'], outPorts: ['db'] },
-    get_hz: { typeId: 98, label: 'Get Hz (Loudest)', category: 'Audio', inPorts: ['audio'], outPorts: ['hz'], params: [{ id: 'rank', label: 'Rank (1=peak)', type: 'number', default: 1 }] }, play_tone: { typeId: 99, label: 'Play Tone', category: 'Audio', inPorts: ['val'], outPorts: ['audio'], params: [{ id: 'freq', label: 'Freq (Hz)', type: 'number', default: 440 }] },
+    get_hz: { typeId: 98, label: 'Get Hz (Loudest)', category: 'Audio', inPorts: ['audio'], outPorts: ['hz'], params: [{ id: 'rank', label: 'Rank (1=peak)', type: 'number', default: 1 }] },
     play_tone: { typeId: 99, label: 'Play Tone', category: 'Audio', inPorts: ['val'], outPorts: ['audio'], params: [{ id: 'freq', label: 'Freq (Hz)', type: 'number', default: 440 }] },
 };
 

@@ -182,6 +182,30 @@ function createNode(type, x, y, restoredId = null, restoredParams = null, restor
     rebuildGraphOrder(); drawWires(); return id;
 }
 
+window.updateParam = function(nodeId, paramId, val) {
+    const node = nodes[nodeId];
+    if (!node) return;
+
+    // Coerce numeric-looking values to actual numbers.
+    // Text/select params stay as strings.
+    const pDef = NODE_DEFS[node.type]?.params?.find(p => p.id === paramId);
+    if (pDef && (pDef.type === 'range' || pDef.type === 'number')) {
+        const num = Number(val);
+        if (!isNaN(num)) val = num;
+    }
+
+    node.params[paramId] = val;
+
+    // Update the blue label above the slider
+    const lbl = document.getElementById(`lbl-${nodeId}-${paramId}`);
+    if (lbl) {
+        lbl.textContent = val;
+        lbl.dataset.last = String(val);   // keep getVal's cache in sync
+    }
+
+    if (node.type === 'hsv_pass') updateSwatch(nodeId);
+};
+
 window.updateLogParam = function(nodeId, paramId, sliderPos) {
     const node = nodes[nodeId];
     if (!node) return;
