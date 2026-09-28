@@ -1002,13 +1002,19 @@ function applyNodeEffect(node, inputs) {
 
         if (type === 'audio_out') {
             const incoming = inputs['audio'];
-            const output = audioEngine.getOutput(node.id);  // already connected to destination
+            const output = audioEngine.getOutput(node.id);
 
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
-                // Silence: mute the output gain (don't disconnect destination)
                 output.gain.value = 0.0;
                 audioEngine.setInput(node.id, null, output);
+                // If the video source was taken over by us, release it back to direct
+                audioEngine.releaseVideoSource();
                 return;
+            }
+
+            // If the video is the source feeding this audio_out, prevent double-audio
+            if (incoming.sourceNode === audioEngine.videoSource) {
+                audioEngine.takeOverVideoSource(incoming.sourceNode);
             }
 
             output.gain.value = 1.0;

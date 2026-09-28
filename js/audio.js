@@ -59,12 +59,25 @@ class AudioEngine {
         if (!this.ctx) return;
         if (!this.videoSource) {
             this.videoSource = this.ctx.createMediaElementSource(videoEl);
-        }
-        // If no audio_out node is wired, connect directly to speakers
-        // so the video isn't silent.
-        if (!this.videoSource._connected) {
+            // Default: route to speakers so audio is audible even with no audio_out node.
             this.videoSource.connect(this.ctx.destination);
-            this.videoSource._connected = true;
+            this.videoDirectConnected = true;
+        }
+    }
+
+    // Call this from audio_out when it starts handling the video source
+    takeOverVideoSource(videoSourceNode) {
+        if (this.videoDirectConnected && videoSourceNode === this.videoSource) {
+            try { this.videoSource.disconnect(this.ctx.destination); } catch(e) {}
+            this.videoDirectConnected = false;
+        }
+    }
+
+    // Call this from audio_out when it stops handling the video source
+    releaseVideoSource() {
+        if (!this.videoDirectConnected && this.videoSource) {
+            try { this.videoSource.connect(this.ctx.destination); } catch(e) {}
+            this.videoDirectConnected = true;
         }
     }
 
