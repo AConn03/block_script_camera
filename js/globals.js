@@ -93,8 +93,7 @@ const NODE_DEFS = {
     get_db: { typeId: 97, label: 'Get dB', category: 'Audio', inPorts: ['audio'], outPorts: ['db'] },
     get_hz: { typeId: 98, label: 'Get Hz (Loudest)', category: 'Audio', inPorts: ['audio'], outPorts: ['hz'], params: [{ id: 'rank', label: 'Rank (1=peak)', type: 'number', default: 1 }] },
     play_tone: { typeId: 99, label: 'Play Tone', category: 'Audio', inPorts: ['val'], outPorts: ['audio'], params: [{ id: 'freq', label: 'Freq (Hz)', type: 'number', default: 440 }] },
-    audio_merge: { typeId: 101, label: 'Merge Audio', category: 'Audio', inPorts: ['a', 'b'], outPorts: ['audio'], params: [ { id: 'mode',  label: 'Mode',   type: 'select', options: ['mix', 'add', 'multiply'], default: 'mix' }, { id: 'levelA', label: 'A (%)', type: 'range', min: 0, max: 200, default: 100 }, { id: 'levelB', label: 'B (%)', type: 'range', min: 0, max: 200, default: 100 } ] }
-
+    audio_merge: { typeId: 101, label: 'Merge Audio', category: 'Audio', inPorts: ['a', 'b'], outPorts: ['audio'], params: [{ id: 'mode', label: 'Mode', type: 'select', options: ['mix', 'add'], default: 'mix' }, { id: 'levelA', label: 'A (%)', type: 'range', min: 0, max: 200, default: 100 }, { id: 'levelB', label: 'B (%)', type: 'range', min: 0, max: 200, default: 100 }] },
 };
 
 // Reverse-lookup helper: converts numeric typeId back to string type name

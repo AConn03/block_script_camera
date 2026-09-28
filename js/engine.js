@@ -1022,11 +1022,16 @@ function applyNodeEffect(node, inputs) {
     if (type === 'time_sec') { node.outputData['val'] = Date.now() / 1000; return; }
     if (type === 'time_date') { node.outputData['val'] = new Date().getDate(); return; }
     if (type === 'video_duration') {
-    const vid = document.getElementById('single-video');
-    const fps = getP('fps', 30);
-    const dur = (vid && !isNaN(vid.duration) && isFinite(vid.duration)) ? vid.duration : 0;
-    node.outputData['val'] = Math.floor(dur * fps);
-    return;
+        const vid = document.getElementById('single-video');
+        const fps = getP('fps', 30);
+        
+        // Check for valid duration and that metadata is fully loaded
+        const dur = (vid && vid.readyState >= 1 && !isNaN(vid.duration) && isFinite(vid.duration)) 
+            ? vid.duration 
+            : 0;
+            
+        node.outputData['val'] = Math.floor(dur * fps);
+        return;
     }
     if (type === 'live_fps') {
     const now = performance.now();
@@ -1382,8 +1387,13 @@ function renderFinalOutput(sourceCanvas) {
 }
 
 function renderLoop() { 
-    evaluateFrame(); 
-    renderLoopId = requestAnimationFrame(renderLoop); }
+    try {
+        evaluateFrame();
+    } catch (err) {
+        console.error("Frame error (recovered):", err);
+    }
+    renderLoopId = requestAnimationFrame(renderLoop); 
+}
 
 function getPortPos(nodeId, portName, isOut) {
     const node = nodes[nodeId];

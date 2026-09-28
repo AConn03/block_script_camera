@@ -60,7 +60,12 @@ class AudioEngine {
         if (!this.videoSource) {
             this.videoSource = this.ctx.createMediaElementSource(videoEl);
         }
-        // Do NOT connect to anything — nodes will pull from it
+        // If no audio_out node is wired, connect directly to speakers
+        // so the video isn't silent.
+        if (!this.videoSource._connected) {
+            this.videoSource.connect(this.ctx.destination);
+            this.videoSource._connected = true;
+        }
     }
 
     detachVideoSource() {

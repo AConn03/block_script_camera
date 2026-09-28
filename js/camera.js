@@ -86,11 +86,11 @@ if (videoUpload) {
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
             await audioEngine.resume();
-            audioEngine.attachVideoSource(singleVideo);
+            //audioEngine.attachVideoSource(singleVideo);
         }
 
         // STEP 4: Unmute — the Web Audio graph now owns audio
-        singleVideo.muted = false;
+        //singleVideo.muted = false;
 
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
