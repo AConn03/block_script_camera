@@ -64,27 +64,33 @@ if (videoUpload) {
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
         singleVideo.src = fileURL;
+        singleVideo.muted = true;   // muted play is allowed without gesture
+        singleVideo.volume = 1;
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // Ensure AudioContext is running BEFORE attaching source
+        // STEP 1: Ensure we have metadata (videoWidth/Height available)
+        await new Promise((resolve) => {
+            if (singleVideo.readyState >= 1) resolve();
+            else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
+        });
+
+        // STEP 2: Start playback (muted is fine)
+        try {
+            await singleVideo.play();
+        } catch (e) {
+            console.warn("Video play failed:", e);
+        }
+
+        // STEP 3: Now wire audio (after play started, element has a real timeline)
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
             await audioEngine.resume();
             audioEngine.attachVideoSource(singleVideo);
         }
 
-        // Temporarily mute to satisfy autoplay policy, then UNMUTE.
-        // Once unmuted, MediaElementSource will pass real audio into the graph.
-        singleVideo.muted = true;
-        try {
-            await singleVideo.play();
-        } catch (e) {
-            console.warn("Video play failed:", e);
-        }
-        // CRITICAL: unmute so Web Audio gets real samples
+        // STEP 4: Unmute — the Web Audio graph now owns audio
         singleVideo.muted = false;
-        singleVideo.volume = 1;
 
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
