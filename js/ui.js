@@ -14,23 +14,15 @@ function centerWorkspace() {
 }
 
 function setupDefaultGraph() {
-    stopAllAudio();
+    stopAllAudio()
     closeAllPreviewsAndUIOverlays();
     document.getElementById('nodes-container').innerHTML = '';
     document.getElementById('ui-layer').innerHTML = '';
     nodes = {}; wires = []; window.userVarNames = []; window.userVars = {};
     const cx = 50000, cy = 50000;
-
-    // Video pipeline: camera → screen
     const cId = createNode('camera', cx - 250, cy - 100);
     const sId = createNode('screen', cx + 50, cy - 100);
     wires.push({ id: generateId(), fromNode: cId, fromPort: 'video', toNode: sId, toPort: 'render' });
-
-    // Audio pipeline: audio_in → audio_out (so uploaded video audio plays)
-    const aiId = createNode('audio_in', cx - 250, cy + 150);
-    const aoId = createNode('audio_out', cx + 50, cy + 150);
-    wires.push({ id: generateId(), fromNode: aiId, fromPort: 'audio', toNode: aoId, toPort: 'audio' });
-
     rebuildGraphOrder();
     drawWires();
     activeScriptName = "Standard (Default)";

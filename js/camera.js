@@ -1,18 +1,14 @@
 async function startCamera() {
     try {
         if (stream) stream.getTracks().forEach(t => t.stop());
+        if (typeof audioEngine !== 'undefined') audioEngine.detachVideoSource();
 
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } },
             audio: false
         });
 
-        // Clear any previously loaded file. Setting src = "" can throw in Chrome,
-        // so use removeAttribute + load() instead.
-        singleVideo.pause();
-        singleVideo.removeAttribute('src');
-        singleVideo.load();
-
+        singleVideo.src = "";
         singleVideo.muted = true;
         singleVideo.srcObject = stream;
 
@@ -67,40 +63,26 @@ if (videoUpload) {
 
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
-
-        // Ensure iOS inline playback (harmless if already in HTML)
-        singleVideo.setAttribute('playsinline', '');
-        singleVideo.setAttribute('webkit-playsinline', '');
-
         singleVideo.src = fileURL;
-        singleVideo.muted = true;
-        singleVideo.volume = 1;
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // Wait for metadata so videoWidth/videoHeight are valid
-        await new Promise((resolve) => {
-            if (singleVideo.readyState >= 1) resolve();
-            else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
-        });
-
-        // CRITICAL ORDER (from the working version):
-        // 1. Init/resume AudioContext
-        // 2. Attach the media element source WHILE STILL MUTED AND PAUSED
-        // 3. Play (muted)
-        // 4. Unmute
+        // Ensure AudioContext is running BEFORE attaching source
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
             await audioEngine.resume();
             audioEngine.attachVideoSource(singleVideo);
         }
 
+        // Temporarily mute to satisfy autoplay policy, then UNMUTE.
+        // Once unmuted, MediaElementSource will pass real audio into the graph.
+        singleVideo.muted = true;
         try {
             await singleVideo.play();
         } catch (e) {
             console.warn("Video play failed:", e);
         }
-
+        // CRITICAL: unmute so Web Audio gets real samples
         singleVideo.muted = false;
         singleVideo.volume = 1;
 

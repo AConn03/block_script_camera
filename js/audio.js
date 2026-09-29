@@ -55,36 +55,14 @@ class AudioEngine {
     }
 
     // ---------- VIDEO (uploaded file) ----------
-    // Creates a MediaElementSource bound to the given <video> element.
-    // IMPORTANT: The MediaElementSource silences the element's direct output
-    // immediately upon creation. The element's audio only reaches the speakers
-    // through the Web Audio graph (audio_in → ... → audio_out).
-    // Call this ONLY ONCE per <video> element — createMediaElementSource throws
-    // if called twice on the same element.
     attachVideoSource(videoEl) {
         if (!this.ctx) return;
-
-        // --- iOS FIX 2: Ensure inline playback attributes are active ---
-        // Some iOS versions ignore these if they were set after metadata load,
-        // so we re-assert them here as a belt-and-braces measure.
-        videoEl.setAttribute('playsinline', '');
-        videoEl.setAttribute('webkit-playsinline', '');
-
-        // Guard against double-attachment on the same element.
-        if (this.videoSource && this.videoSource.mediaElement === videoEl) return;
-
         if (!this.videoSource) {
-            try {
-                this.videoSource = this.ctx.createMediaElementSource(videoEl);
-            } catch (e) {
-                console.warn("createMediaElementSource failed (already attached?):", e);
-            }
+            this.videoSource = this.ctx.createMediaElementSource(videoEl);
         }
-        // Do NOT connect to destination here — routing is handled by the graph.
+        // Do NOT connect to anything — nodes will pull from it
     }
 
-    // Disconnect the video source from everything it's connected to.
-    // Does NOT null out videoSource, because the element remains bound to it.
     detachVideoSource() {
         if (this.videoSource) {
             try { this.videoSource.disconnect(); } catch(e) {}
@@ -107,9 +85,8 @@ class AudioEngine {
         return this.nodes[k];
     }
 
-    // Legacy: single-type biquad chain. Still used if other code references it.
     getFilterChain(nodeId, type, poles) {
-        poles = Math.max(1, Math.min(8, parseInt(poles) || 1));
+        poles = Math.max(1, Math.min(4, parseInt(poles) || 1));
         const key = `${nodeId}_filterchain_${type}`;
         const metaKey = `${key}_poles`;
 
@@ -117,11 +94,13 @@ class AudioEngine {
             return this.nodes[key];
         }
 
+        // === NEW: Clean up any existing chain AND its incoming edge ===
         const prevIncoming = this.lastIncoming[nodeId];
         if (prevIncoming && this.nodes[key]) {
             try { prevIncoming.disconnect(this.nodes[key]); } catch(e) {}
         }
 
+        // Tear down old chain
         if (this.nodes[key]) {
             try { this.nodes[key].disconnect(); } catch(e) {}
         }
@@ -132,6 +111,7 @@ class AudioEngine {
             }
         });
 
+        // Build fresh chain
         const filters = [];
         for (let i = 0; i < poles; i++) {
             const f = this.ctx.createBiquadFilter();
@@ -145,66 +125,11 @@ class AudioEngine {
 
         this.nodes[key] = filters[0];
         this.nodes[metaKey] = poles;
+        
+        // Force setInput to re-wire on next frame (because prev is now invalid)
         this.lastIncoming[nodeId] = null;
-
+        
         return filters[0];
-    }
-
-    // Hz filter: high-pass chain at minHz, low-pass chain at maxHz, chained in series.
-    // Returns { hpHead, lpTail }. Rebuilds if signature changes.
-    getHzFilterChain(nodeId, minHz, maxHz, poles) {
-        poles = Math.max(1, Math.min(8, parseInt(poles) || 4));
-        const key = `${nodeId}_hzfilter`;
-        const metaKey = `${key}_meta`;
-        const sig = `${minHz}|${maxHz}|${poles}`;
-
-        if (this.nodes[key] && this.nodes[metaKey] === sig) {
-            return {
-                hpHead: this.nodes[`${nodeId}_hzfilter_hp_0`],
-                lpTail: this.nodes[`${nodeId}_hzfilter_lp_${poles - 1}`]
-            };
-        }
-
-        // Tear down old chain
-        Object.keys(this.nodes).forEach(k => {
-            if (k.startsWith(`${nodeId}_hzfilter_`)) {
-                try { this.nodes[k].disconnect(); } catch(e) {}
-                delete this.nodes[k];
-            }
-        });
-        this.lastIncoming[nodeId] = null;
-
-        // High-pass chain at minHz
-        const hp = [];
-        for (let i = 0; i < poles; i++) {
-            const f = this.ctx.createBiquadFilter();
-            f.type = 'highpass';
-            f.frequency.value = minHz;
-            f.Q.value = 0.7071;
-            this.nodes[`${nodeId}_hzfilter_hp_${i}`] = f;
-            hp.push(f);
-        }
-        for (let i = 0; i < hp.length - 1; i++) hp[i].connect(hp[i + 1]);
-
-        // Low-pass chain at maxHz
-        const lp = [];
-        for (let i = 0; i < poles; i++) {
-            const f = this.ctx.createBiquadFilter();
-            f.type = 'lowpass';
-            f.frequency.value = maxHz;
-            f.Q.value = 0.7071;
-            this.nodes[`${nodeId}_hzfilter_lp_${i}`] = f;
-            lp.push(f);
-        }
-        for (let i = 0; i < lp.length - 1; i++) lp[i].connect(lp[i + 1]);
-
-        // Wire HP tail → LP head
-        hp[hp.length - 1].connect(lp[0]);
-
-        this.nodes[key] = hp[0];
-        this.nodes[metaKey] = sig;
-
-        return { hpHead: hp[0], lpTail: lp[lp.length - 1] };
     }
 
     getAnalyser(nodeId) {
@@ -231,6 +156,9 @@ class AudioEngine {
 
     removeNode(nodeId) {
         this.stopTone(nodeId);
+
+        // Disconnect any incoming source from our local sub-node
+        const incoming = this.lastIncoming[nodeId];
 
         // Disconnect and delete all local sub-nodes for this nodeId
         Object.keys(this.nodes).forEach(k => {
@@ -268,48 +196,6 @@ class AudioEngine {
             delete this.toneOscillators[nodeId];
             delete this.toneGains[nodeId];
         }
-    }
-
-    // ---------- dB GATE ----------
-    getDbGate(nodeId) {
-        const key = `${nodeId}_dbgate`;
-        if (!this.nodes[key]) {
-            const g = this.ctx.createGain();
-            g.gain.value = 1.0;
-            this.nodes[key] = g;
-        }
-        return this.nodes[key];
-    }
-
-    // ---------- MERGE (2-input) ----------
-    getMerge(nodeId, mode) {
-        const key = `${nodeId}_merge_${mode}`;
-        if (!this.nodes[key]) {
-            const g = this.ctx.createGain();
-            g.gain.value = 1.0;
-            this.nodes[key] = g;
-        }
-        return this.nodes[key];
-    }
-
-    getMergeGainA(nodeId) {
-        const key = `${nodeId}_mergeGainA`;
-        if (!this.nodes[key]) {
-            const g = this.ctx.createGain();
-            g.gain.value = 1.0;
-            this.nodes[key] = g;
-        }
-        return this.nodes[key];
-    }
-
-    getMergeGainB(nodeId) {
-        const key = `${nodeId}_mergeGainB`;
-        if (!this.nodes[key]) {
-            const g = this.ctx.createGain();
-            g.gain.value = 1.0;
-            this.nodes[key] = g;
-        }
-        return this.nodes[key];
     }
 
     // ---------- ANALYSIS ----------
