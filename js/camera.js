@@ -64,7 +64,6 @@ if (videoUpload) {
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
 
-        // --- iOS inline playback attributes ---
         singleVideo.setAttribute('playsinline', '');
         singleVideo.setAttribute('webkit-playsinline', '');
 
@@ -80,11 +79,9 @@ if (videoUpload) {
             else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
         });
 
-        // --- FIX #2: Latch dimensions so render loop doesn't thrash canvases ---
         window._lockedVideoWidth = singleVideo.videoWidth;
         window._lockedVideoHeight = singleVideo.videoHeight;
 
-        // --- FIX #1a: Set up requestVideoFrameCallback so we know when real frames arrive ---
         if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
             const onVideoFrame = (now, metadata) => {
                 singleVideo._lastFrameTime = metadata.mediaTime;
@@ -93,22 +90,30 @@ if (videoUpload) {
             singleVideo.requestVideoFrameCallback(onVideoFrame);
         }
 
-        // STEP 2: Attach to Web Audio FIRST (while muted & paused)
-        // This is the ordering that worked in the earlier version.
+        // STEP 1.5: Prime the decoder (muted play, brief pause, rewind)
+        try {
+            await singleVideo.play();
+            await new Promise(resolve => setTimeout(resolve, 150));
+            singleVideo.pause();
+            singleVideo.currentTime = 0;
+        } catch (e) {
+            console.warn("Priming play failed:", e);
+        }
+
+        // STEP 2: Attach to Web Audio (context guaranteed running)
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
-            await audioEngine.resume();
+            await audioEngine.waitForRunning();
             audioEngine.attachVideoSource(singleVideo);
         }
 
-        // STEP 3: Start playback (muted is fine — autoplay policy allows it)
+        // STEP 3: Final playback
         try {
             await singleVideo.play();
         } catch (e) {
             console.warn("Video play failed:", e);
         }
 
-        // STEP 4: Unmute so Web Audio graph receives real audio samples
         singleVideo.muted = false;
         singleVideo.volume = 1;
 

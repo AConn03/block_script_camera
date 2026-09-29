@@ -25,6 +25,23 @@ class AudioEngine {
         }
     }
 
+    async waitForRunning() {
+        if (!this.ctx) return;
+        if (this.ctx.state === 'running') return;
+        await this.ctx.resume();
+        // Some browsers return from resume() while still transitioning.
+        // Yield to the event loop and re-check.
+        if (this.ctx.state !== 'running') {
+            await new Promise(resolve => {
+                const check = () => {
+                    if (this.ctx.state === 'running') resolve();
+                    else setTimeout(check, 20);
+                };
+                check();
+            });
+        }
+    }
+
     // ---------- MIC (hardware) ----------
     async startMic() {
         await this.init();
