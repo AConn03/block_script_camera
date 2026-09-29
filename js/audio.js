@@ -55,32 +55,26 @@ class AudioEngine {
     }
 
     // ---------- VIDEO (uploaded file) ----------
+    // Creates a MediaElementSource bound to the given <video> element.
+    // IMPORTANT: The MediaElementSource silences the element's direct output
+    // immediately upon creation. The element's audio only reaches the speakers
+    // through the Web Audio graph (audio_in → ... → audio_out).
+    // Call this ONLY ONCE per <video> element — createMediaElementSource throws
+    // if called twice on the same element.
     attachVideoSource(videoEl) {
         if (!this.ctx) return;
         if (!this.videoSource) {
-            this.videoSource = this.ctx.createMediaElementSource(videoEl);
-            // Default: route to speakers so audio is audible even with no audio_out node.
-            this.videoSource.connect(this.ctx.destination);
-            this.videoDirectConnected = true;
+            try {
+                this.videoSource = this.ctx.createMediaElementSource(videoEl);
+            } catch (e) {
+                console.warn("createMediaElementSource failed (already attached?):", e);
+            }
         }
+        // Do NOT connect to destination here — routing is handled by the graph.
     }
 
-    // Call this from audio_out when it starts handling the video source
-    takeOverVideoSource(videoSourceNode) {
-        if (this.videoDirectConnected && videoSourceNode === this.videoSource) {
-            try { this.videoSource.disconnect(this.ctx.destination); } catch(e) {}
-            this.videoDirectConnected = false;
-        }
-    }
-
-    // Call this from audio_out when it stops handling the video source
-    releaseVideoSource() {
-        if (!this.videoDirectConnected && this.videoSource) {
-            try { this.videoSource.connect(this.ctx.destination); } catch(e) {}
-            this.videoDirectConnected = true;
-        }
-    }
-
+    // Disconnect the video source from everything it's connected to.
+    // Does NOT null out videoSource, because the element remains bound to it.
     detachVideoSource() {
         if (this.videoSource) {
             try { this.videoSource.disconnect(); } catch(e) {}
@@ -267,7 +261,6 @@ class AudioEngine {
     }
 
     // ---------- dB GATE ----------
-    // Pass-through gain, 1 when in range, 0 when out. Toggled per frame.
     getDbGate(nodeId) {
         const key = `${nodeId}_dbgate`;
         if (!this.nodes[key]) {

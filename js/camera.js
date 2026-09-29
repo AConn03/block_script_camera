@@ -1,14 +1,18 @@
 async function startCamera() {
     try {
         if (stream) stream.getTracks().forEach(t => t.stop());
-        if (typeof audioEngine !== 'undefined') audioEngine.detachVideoSource();
 
         stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: usingBackCamera ? 'environment' : 'user', width: { ideal: 1280 } },
             audio: false
         });
 
-        singleVideo.src = "";
+        // Clear any previously loaded file. Setting src = "" can throw in Chrome,
+        // so use removeAttribute + load() instead.
+        singleVideo.pause();
+        singleVideo.removeAttribute('src');
+        singleVideo.load();
+
         singleVideo.muted = true;
         singleVideo.srcObject = stream;
 
@@ -75,22 +79,33 @@ if (videoUpload) {
             else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
         });
 
-        // STEP 2: Start playback (muted is fine)
+        // STEP 2: Start playback (muted is fine — autoplay policy allows this)
+        // camera.js (Inside videoUpload change listener)
         try {
             await singleVideo.play();
         } catch (e) {
             console.warn("Video play failed:", e);
         }
 
-        // STEP 3: Now wire audio (after play started, element has a real timeline)
+        if (typeof audioEngine !== 'undefined') {
+            await audioEngine.init();
+            await audioEngine.resume(); // Ensure context resumes AFTER video play starts
+            audioEngine.attachVideoSource(singleVideo);
+        }
+
+        // STEP 3: Attach to Web Audio so audio nodes can process the sound.
+        // This silences the element's direct output; audio now only flows
+        // through the graph (audio_in → ... → audio_out).
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
             await audioEngine.resume();
-            //audioEngine.attachVideoSource(singleVideo);
+            audioEngine.attachVideoSource(singleVideo);
         }
 
-        // STEP 4: Unmute — the Web Audio graph now owns audio
-        //singleVideo.muted = false;
+        // STEP 4: Unmute — required so createMediaElementSource outputs real audio.
+        // A muted element feeds silence into the Web Audio graph.
+        singleVideo.muted = false;
+        singleVideo.volume = 1;
 
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;

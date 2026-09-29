@@ -767,13 +767,12 @@ function applyNodeEffect(node, inputs) {
         // ============ SOURCES ============
 
         if (type === 'audio_in') {
-            // Auto-detect hardware source. Mic takes priority if mic_toggle turned it on.
             const srcNode = audioEngine.getActiveSourceNode();
             node.outputData['audio'] = {
                 type: 'source',
                 nodeId: node.id,
                 engine: audioEngine,
-                sourceNode: srcNode   // may be null if no hardware source active
+                sourceNode: srcNode
             };
             return;
         }
@@ -1007,14 +1006,7 @@ function applyNodeEffect(node, inputs) {
             if (!incoming || incoming.type !== 'source' || !incoming.sourceNode) {
                 output.gain.value = 0.0;
                 audioEngine.setInput(node.id, null, output);
-                // If the video source was taken over by us, release it back to direct
-                audioEngine.releaseVideoSource();
                 return;
-            }
-
-            // If the video is the source feeding this audio_out, prevent double-audio
-            if (incoming.sourceNode === audioEngine.videoSource) {
-                audioEngine.takeOverVideoSource(incoming.sourceNode);
             }
 
             output.gain.value = 1.0;
