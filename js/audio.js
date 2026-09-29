@@ -63,15 +63,24 @@ class AudioEngine {
     // if called twice on the same element.
     attachVideoSource(videoEl) {
         if (!this.ctx) return;
-        // Only create once per element
+
+        // --- iOS FIX 2: Ensure inline playback attributes are active ---
+        // Some iOS versions ignore these if they were set after metadata load,
+        // so we re-assert them here as a belt-and-braces measure.
+        videoEl.setAttribute('playsinline', '');
+        videoEl.setAttribute('webkit-playsinline', '');
+
+        // Guard against double-attachment on the same element.
         if (this.videoSource && this.videoSource.mediaElement === videoEl) return;
+
         if (!this.videoSource) {
             try {
                 this.videoSource = this.ctx.createMediaElementSource(videoEl);
             } catch (e) {
-                console.warn("createMediaElementSource failed:", e);
+                console.warn("createMediaElementSource failed (already attached?):", e);
             }
         }
+        // Do NOT connect to destination here — routing is handled by the graph.
     }
 
     // Disconnect the video source from everything it's connected to.

@@ -67,33 +67,47 @@ if (videoUpload) {
 
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
+
+        // --- iOS FIX 1: Set playsinline BEFORE loading ---
+        // Without this, iOS forces fullscreen or freezes canvas frame capture.
+        singleVideo.setAttribute('playsinline', '');
+        singleVideo.setAttribute('webkit-playsinline', '');
+        // Note: crossOrigin is intentionally NOT set — blob URLs are same-origin
+        // and setting crossOrigin can actually break canvas capture on some browsers.
+
         singleVideo.src = fileURL;
-        singleVideo.muted = true;  // Start muted for autoplay policy
+        singleVideo.muted = true;   // muted autoplay is allowed without gesture
         singleVideo.volume = 1;
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // STEP 1: Wait for metadata
+        // STEP 1: Ensure we have metadata (videoWidth/Height available)
         await new Promise((resolve) => {
             if (singleVideo.readyState >= 1) resolve();
             else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
         });
 
-        // STEP 2: Start playback FIRST (muted is fine for autoplay)
+        // STEP 2: Start playback FIRST (muted is fine — autoplay policy allows this)
+        // Doing this BEFORE createMediaElementSource avoids the iOS 13 freeze bug
+        // where the video gets stuck in a paused state after audio is rerouted.
         try {
             await singleVideo.play();
         } catch (e) {
             console.warn("Video play failed:", e);
         }
 
-        // STEP 3: NOW attach to Web Audio (after playback has started)
+        // STEP 3: Attach to Web Audio AFTER playback has started.
+        // This is the critical ordering fix for iOS. The media pipeline is now
+        // active and stable, so rerouting audio through the Web Audio graph won't
+        // freeze the video.
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
-            await audioEngine.resume();  // Critical: must resume before attaching
+            await audioEngine.resume();  // Must resume before attaching on iOS
             audioEngine.attachVideoSource(singleVideo);
         }
 
-        // STEP 4: Unmute to let the Web Audio graph receive real audio
+        // STEP 4: Unmute — required so createMediaElementSource outputs real audio.
+        // A muted element feeds silence into the Web Audio graph.
         singleVideo.muted = false;
         singleVideo.volume = 1;
 
