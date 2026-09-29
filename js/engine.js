@@ -527,7 +527,8 @@ function showErrorModal(nodeType, msg, suggestion) {
 function evaluateFrame() {
     if (hasCycleError) return; 
     if (evalOrder.length === 0) return; 
-    if (singleVideo && singleVideo.videoWidth) { videoWidth = singleVideo.videoWidth; videoHeight = singleVideo.videoHeight; }
+    // --- FIX #2: Use latched dimensions to prevent canvas thrashing ---
+    if (singleVideo && singleVideo.videoWidth) {videoWidth = window._lockedVideoWidth || singleVideo.videoWidth;videoHeight = window._lockedVideoHeight || singleVideo.videoHeight;}
     
     Object.values(nodes).forEach(node => {
         if (!node.outputData) node.outputData = {};
@@ -713,9 +714,14 @@ function applyNodeEffect(node, inputs) {
     if (type === 'camera') {
         if (stream || (singleVideo && singleVideo.src)) {
             if (!window.isCameraPaused) {
-                // The engine already resizes the canvas exactly to singleVideo.videoWidth/Height.
-                // Standard drawing naturally maintains the perfect aspect ratio.
-                ctx.drawImage(singleVideo, 0, 0, w, h);
+                // --- FIX #1b: Only draw when the video actually has a frame ready ---
+                // For live camera streams (srcObject set), draw every frame.
+                // For uploaded file videos, require readyState >= 2 so we don't
+                // starve the decoder with premature drawImage calls.
+                const isFileVideo = !stream && singleVideo.src && !singleVideo.srcObject;
+                if (!isFileVideo || singleVideo.readyState >= 2) {
+                    ctx.drawImage(singleVideo, 0, 0, w, h);
+                }
             }
         } else {
             ctx.fillStyle = '#111'; ctx.fillRect(0, 0, w, h);
@@ -1245,12 +1251,16 @@ function applyNodeEffect(node, inputs) {
 
     if (type === 'fps') {
         const limit = getP('fps', 30), now = performance.now();
-        let defaultOut = NODE_DEFS[type].outPorts.includes('out') ? 'out' : 'video';
         if (!node.lastTime) node.lastTime = 0;
-        if (now - node.lastTime >= (1000 / limit)) { node.lastTime = now; ctx.drawImage(unifiedInCanvas, 0, 0); } else if (node.outputData[defaultOut]) ctx.drawImage(node.outputData[defaultOut], 0, 0);
+        // --- FIX #3: Don't draw canvas onto itself; just skip the redraw when throttled ---
+        if (now - node.lastTime >= (1000 / limit)) {
+            node.lastTime = now;
+            ctx.drawImage(unifiedInCanvas, 0, 0);
+        }
+        // If throttled, leave canvas as-is (it still holds the last good frame).
         setUnifiedOutCanvas(canvas); return;
     }
-    
+        
     if (type === 'delay') {
         const reqFrames = Math.max(1, parseInt(getP('frames', 15)));
         while (node.buffer.length < reqFrames) node.buffer.push(createInternalCanvas(w, h));

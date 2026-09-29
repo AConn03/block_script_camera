@@ -63,34 +63,54 @@ if (videoUpload) {
 
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
+
+        // --- iOS inline playback attributes ---
+        singleVideo.setAttribute('playsinline', '');
+        singleVideo.setAttribute('webkit-playsinline', '');
+
         singleVideo.src = fileURL;
-        singleVideo.muted = true;   // muted play is allowed without gesture
+        singleVideo.muted = true;
         singleVideo.volume = 1;
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // STEP 1: Ensure we have metadata (videoWidth/Height available)
+        // STEP 1: Wait for metadata
         await new Promise((resolve) => {
             if (singleVideo.readyState >= 1) resolve();
             else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
         });
 
-        // STEP 2: Start playback (muted is fine)
-        try {
-            await singleVideo.play();
-        } catch (e) {
-            console.warn("Video play failed:", e);
+        // --- FIX #2: Latch dimensions so render loop doesn't thrash canvases ---
+        window._lockedVideoWidth = singleVideo.videoWidth;
+        window._lockedVideoHeight = singleVideo.videoHeight;
+
+        // --- FIX #1a: Set up requestVideoFrameCallback so we know when real frames arrive ---
+        if ('requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+            const onVideoFrame = (now, metadata) => {
+                singleVideo._lastFrameTime = metadata.mediaTime;
+                singleVideo.requestVideoFrameCallback(onVideoFrame);
+            };
+            singleVideo.requestVideoFrameCallback(onVideoFrame);
         }
 
-        // STEP 3: Now wire audio (after play started, element has a real timeline)
+        // STEP 2: Attach to Web Audio FIRST (while muted & paused)
+        // This is the ordering that worked in the earlier version.
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
             await audioEngine.resume();
             audioEngine.attachVideoSource(singleVideo);
         }
 
-        // STEP 4: Unmute — the Web Audio graph now owns audio
+        // STEP 3: Start playback (muted is fine — autoplay policy allows it)
+        try {
+            await singleVideo.play();
+        } catch (e) {
+            console.warn("Video play failed:", e);
+        }
+
+        // STEP 4: Unmute so Web Audio graph receives real audio samples
         singleVideo.muted = false;
+        singleVideo.volume = 1;
 
         document.getElementById('start-camera').disabled = false;
         document.getElementById('stop-camera').disabled = true;
