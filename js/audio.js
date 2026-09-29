@@ -63,14 +63,15 @@ class AudioEngine {
     // if called twice on the same element.
     attachVideoSource(videoEl) {
         if (!this.ctx) return;
+        // Only create once per element
+        if (this.videoSource && this.videoSource.mediaElement === videoEl) return;
         if (!this.videoSource) {
             try {
                 this.videoSource = this.ctx.createMediaElementSource(videoEl);
             } catch (e) {
-                console.warn("createMediaElementSource failed (already attached?):", e);
+                console.warn("createMediaElementSource failed:", e);
             }
         }
-        // Do NOT connect to destination here — routing is handled by the graph.
     }
 
     // Disconnect the video source from everything it's connected to.
