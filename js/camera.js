@@ -68,42 +68,32 @@ if (videoUpload) {
         const fileURL = URL.createObjectURL(file);
         singleVideo.srcObject = null;
         singleVideo.src = fileURL;
-        singleVideo.muted = true;   // muted play is allowed without gesture
+        singleVideo.muted = true;  // Start muted for autoplay policy
         singleVideo.volume = 1;
 
         [singleVideo, canvasSingle].forEach(el => { if (el) el.style.objectFit = 'contain'; });
 
-        // STEP 1: Ensure we have metadata (videoWidth/Height available)
+        // STEP 1: Wait for metadata
         await new Promise((resolve) => {
             if (singleVideo.readyState >= 1) resolve();
             else singleVideo.addEventListener('loadedmetadata', resolve, { once: true });
         });
 
-        // STEP 2: Start playback (muted is fine — autoplay policy allows this)
-        // camera.js (Inside videoUpload change listener)
+        // STEP 2: Start playback FIRST (muted is fine for autoplay)
         try {
             await singleVideo.play();
         } catch (e) {
             console.warn("Video play failed:", e);
         }
 
+        // STEP 3: NOW attach to Web Audio (after playback has started)
         if (typeof audioEngine !== 'undefined') {
             await audioEngine.init();
-            await audioEngine.resume(); // Ensure context resumes AFTER video play starts
+            await audioEngine.resume();  // Critical: must resume before attaching
             audioEngine.attachVideoSource(singleVideo);
         }
 
-        // STEP 3: Attach to Web Audio so audio nodes can process the sound.
-        // This silences the element's direct output; audio now only flows
-        // through the graph (audio_in → ... → audio_out).
-        if (typeof audioEngine !== 'undefined') {
-            await audioEngine.init();
-            await audioEngine.resume();
-            audioEngine.attachVideoSource(singleVideo);
-        }
-
-        // STEP 4: Unmute — required so createMediaElementSource outputs real audio.
-        // A muted element feeds silence into the Web Audio graph.
+        // STEP 4: Unmute to let the Web Audio graph receive real audio
         singleVideo.muted = false;
         singleVideo.volume = 1;
 
